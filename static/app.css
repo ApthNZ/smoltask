@@ -1,0 +1,232 @@
+/* Palette shared verbatim with smolplan, so the two apps read as one family.
+   Light values first, each dark override immediately after the rules it
+   overrides — the @media blocks have the same specificity, so source order is
+   what decides the winner. */
+:root {
+  --bg: #f6f7f9;
+  --panel: #ffffff;
+  --line: #d8dce3;
+  --line-soft: #eaedf1;
+  --text: #1b1f24;
+  --muted: #646c78;
+  --accent: #2f6feb;
+  --green: #1f8a4c;
+  --green-bg: #dcf1e4;
+  --red: #b3261e;
+  --red-bg: #fbdedb;
+  --grey-bg: #e7e9ed;
+  --hint: #cfe0ff;
+  --row: 30px;
+  --page: 720px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #16181d;
+    --panel: #1e2127;
+    --line: #343943;
+    --line-soft: #2a2e36;
+    --text: #e7e9ee;
+    --muted: #99a1ae;
+    --accent: #6c9bff;
+    --green: #63c98d;
+    --green-bg: #1c3a2a;
+    --red: #ff8b80;
+    --red-bg: #45211d;
+    --grey-bg: #2b2f37;
+    --hint: #26375c;
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 13px/1.45 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+h1 { font-size: 15px; margin: 0; font-weight: 600; letter-spacing: .2px; }
+
+header {
+  display: flex; align-items: center; gap: 16px;
+  padding: 8px 14px; background: var(--panel);
+  border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 20;
+}
+nav { display: flex; gap: 4px; }
+nav button {
+  background: none; border: 1px solid transparent; border-radius: 5px;
+  padding: 4px 10px; color: var(--muted); font: inherit; cursor: pointer;
+}
+nav button:hover { background: var(--line-soft); color: var(--text); }
+nav button.on { background: var(--line-soft); border-color: var(--line); color: var(--text); }
+.count { margin-left: auto; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+main {
+  max-width: var(--page);
+  margin: 0 auto;
+  padding: 18px 14px 80px;
+}
+
+/* --- the page ------------------------------------------------------------ */
+
+/* A notebook line: one row tall, a rule underneath, nothing else. */
+.row {
+  display: flex; align-items: center; gap: 9px;
+  height: var(--row);
+  border-bottom: 1px solid var(--line-soft);
+  padding: 0 4px;
+}
+.row.on { background: var(--line-soft); border-radius: 4px; }
+.row.dim { opacity: .38; }
+.row.lit { background: var(--hint); border-radius: 4px; }
+
+.tick {
+  flex: none; width: 15px; height: 15px; padding: 0;
+  border: 1.5px solid var(--muted); border-radius: 3px;
+  background: none; cursor: pointer; color: transparent;
+  font-size: 11px; line-height: 1;
+}
+.tick:hover { border-color: var(--green); color: var(--green); }
+.tick:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+.title {
+  flex: 1 1 auto; min-width: 0;
+  overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+  cursor: text;
+}
+.title-edit {
+  flex: 1 1 auto; min-width: 0;
+  border: none; border-bottom: 1px solid var(--accent); background: none;
+  color: var(--text); font: inherit; padding: 0;
+}
+.title-edit:focus { outline: none; }
+
+.key { flex: none; color: var(--muted); font-size: 11px; }
+.key a { color: var(--accent); text-decoration: none; }
+.due {
+  flex: none; color: var(--muted); font-size: 12px;
+  font-variant-numeric: tabular-nums; min-width: 54px; text-align: right;
+}
+.due.over { color: var(--red); font-weight: 600; }
+
+/* Section headings are the only chrome on the page. */
+.section {
+  display: flex; align-items: baseline; gap: 7px;
+  margin: 18px 0 2px; font-size: 12px; font-weight: 600;
+}
+.section:first-child { margin-top: 0; }
+.section .axis { font-weight: 400; color: var(--muted); }
+
+/* --- capture -------------------------------------------------------------- */
+
+.capture {
+  display: flex; align-items: center; gap: 9px;
+  height: var(--row); padding: 0 4px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 14px;
+}
+.capture .box {
+  flex: none; width: 15px; height: 15px;
+  border: 1.5px dashed var(--line); border-radius: 3px;
+}
+.capture input {
+  flex: 1 1 auto; border: none; background: none; color: var(--text);
+  font: inherit; padding: 0;
+}
+.capture input:focus { outline: none; }
+.capture input::placeholder { color: var(--muted); opacity: .75; }
+.counter { flex: none; color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.counter.full { color: var(--red); font-weight: 600; }
+
+.empty { color: var(--muted); padding: 10px 4px; }
+
+/* --- triage --------------------------------------------------------------- */
+
+.triage {
+  display: flex; align-items: center; gap: 12px;
+  background: var(--hint); border: 1px solid var(--accent); border-radius: 6px;
+  padding: 7px 11px; margin-bottom: 14px;
+}
+@media (prefers-color-scheme: dark) {
+  .triage { background: var(--hint); }
+}
+.triage b { font-weight: 600; }
+.triage .hint { color: var(--muted); margin-left: auto; font-size: 12px; }
+.triage .why { color: var(--muted); }
+
+.duebox {
+  flex: none; width: 190px;
+  border: 1px solid var(--accent); border-radius: 4px; background: var(--panel);
+  color: var(--text); font: inherit; font-size: 12px; padding: 1px 5px;
+}
+.duebox:focus { outline: none; }
+
+/* --- undo ----------------------------------------------------------------- */
+
+.undo {
+  position: fixed; left: 50%; transform: translateX(-50%); bottom: 18px;
+  display: flex; align-items: center; gap: 12px;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 6px;
+  padding: 7px 13px; box-shadow: 0 2px 10px rgba(0, 0, 0, .13);
+  max-width: calc(100vw - 28px); z-index: 30;
+}
+@media (prefers-color-scheme: dark) {
+  .undo { box-shadow: 0 2px 10px rgba(0, 0, 0, .5); }
+}
+.undo .what { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.undo button {
+  flex: none; background: none; border: 1px solid var(--line); border-radius: 5px;
+  padding: 3px 9px; color: var(--accent); font: inherit; cursor: pointer;
+}
+.undo button:hover { background: var(--line-soft); }
+
+/* --- archive -------------------------------------------------------------- */
+
+.tools { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+.tools input {
+  flex: 1 1 auto; border: 1px solid var(--line); border-radius: 5px;
+  background: var(--panel); color: var(--text); font: inherit; padding: 4px 8px;
+}
+.tools input:focus { outline: 1px solid var(--accent); }
+.filters { display: flex; gap: 4px; }
+.filters button {
+  background: none; border: 1px solid transparent; border-radius: 5px;
+  padding: 3px 9px; color: var(--muted); font: inherit; cursor: pointer;
+}
+.filters button:hover { background: var(--line-soft); color: var(--text); }
+.filters button.on { background: var(--line-soft); border-color: var(--line); color: var(--text); }
+
+table { width: 100%; border-collapse: collapse; }
+th {
+  text-align: left; font-size: 12px; font-weight: 600; color: var(--muted);
+  border-bottom: 1px solid var(--line); padding: 5px 6px; white-space: nowrap;
+}
+th.sortable { cursor: pointer; user-select: none; }
+th.sortable:hover { color: var(--text); }
+td {
+  border-bottom: 1px solid var(--line-soft); padding: 0 6px;
+  height: var(--row); font-variant-numeric: tabular-nums;
+}
+td.what { font-variant-numeric: normal; max-width: 0; width: 99%;
+          overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+td.outcome { white-space: nowrap; }
+td.outcome .done { color: var(--green); }
+td.outcome a { color: var(--accent); text-decoration: none; }
+.restore {
+  background: none; border: 1px solid var(--line); border-radius: 5px;
+  padding: 1px 8px; color: var(--muted); font: inherit; font-size: 12px;
+  cursor: pointer; visibility: hidden;
+}
+tr:hover .restore, tr:focus-within .restore { visibility: visible; }
+.restore:hover { color: var(--text); background: var(--line-soft); }
+
+/* --- toast ---------------------------------------------------------------- */
+
+#toast {
+  position: fixed; left: 50%; transform: translateX(-50%); bottom: 18px;
+  background: var(--red-bg); color: var(--red); border: 1px solid var(--red);
+  border-radius: 6px; padding: 7px 13px; z-index: 40;
+}
+[hidden] { display: none !important; }

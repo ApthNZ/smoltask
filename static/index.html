@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>smoltask</title>
+<link rel="icon" href="/static/favicon.png" sizes="32x32">
+<link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+<header>
+  <h1>smoltask</h1>
+  <nav id="tabs">
+    <button data-view="tasks" class="on">Tasks</button>
+    <button data-view="archive">Archive</button>
+  </nav>
+  <span id="count" class="count"></span>
+</header>
+
+<main id="view"></main>
+
+<div id="undo" hidden></div>
+<div id="toast" hidden></div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>
