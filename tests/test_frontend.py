@@ -55,7 +55,7 @@ def test_the_triage_queue_is_a_snapshot():
     """Refreshing the queue mid-pass steps over every second task: an acted-on
     task drops out of the server's queue and the rising index skips its
     replacement. This bug has been written once already."""
-    assert "state.queue = state.triage.queue.slice()" in APP_JS
+    assert "state.queue = source.slice()" in APP_JS
     assert "state.queue[state.qi]" in APP_JS
     assert "state.triage.queue[state.qi]" not in APP_JS
 
@@ -87,6 +87,15 @@ def test_typing_is_never_swallowed_by_a_shortcut():
 
 def test_ctrl_z_defers_to_the_browser_while_there_is_text():
     assert "if (typing && active.value) return;" in APP_JS
+
+
+def test_input_handlers_stop_keys_reaching_the_global_handler():
+    """Both handlers fire for a key pressed inside an input. The global Escape
+    case would undo what the capture row's own handler just did — step down into
+    the list, then bounce straight back up to the capture row."""
+    for handler in ("onCaptureKey", "onEditKey", "onDueKey"):
+        body = APP_JS[APP_JS.index(f"function {handler}("):][:400]
+        assert "event.stopPropagation()" in body, f"{handler} lets its keys bubble"
 
 
 def test_the_page_never_reloads_itself():

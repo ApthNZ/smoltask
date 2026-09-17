@@ -96,7 +96,7 @@ def test_unknown_task_is_404(client):
 def test_the_page_payload_carries_what_the_page_needs(client):
     body = client.get("/api/tasks").json()
     assert set(body) == {"today", "tasks", "triage", "done_today"}
-    assert set(body["triage"]) == {"queue", "counts", "auto"}
+    assert set(body["triage"]) == {"queue", "counts", "auto", "all"}
 
 
 def test_index_and_static_are_served(client):

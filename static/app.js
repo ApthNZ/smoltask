@@ -428,10 +428,14 @@ function promote() {
 const queueTask = () => state.queue[state.qi] || null;
 
 function startTriage() {
-  if (!state.triage.queue.length) { toast("Nothing to triage."); return; }
+  // Today's queue first; once it is spent, an on-demand run offers everything
+  // that still qualifies. Having triaged at nine must not make the ritual
+  // unavailable at four, when the day has moved on.
+  const source = state.triage.queue.length ? state.triage.queue : state.triage.all;
+  if (!source || !source.length) { toast("Nothing to triage."); return; }
   // A snapshot, deliberately. The server's queue shrinks as tasks are triaged;
   // walking a shrinking list with a rising index steps over every second task.
-  state.queue = state.triage.queue.slice();
+  state.queue = source.slice();
   state.triaging = true;
   state.qi = 0;
   state.focus = null;
@@ -486,8 +490,13 @@ function moveFocus(step) {
   render();
 }
 
+// The document-level handler sees these keys too, and its Escape case would
+// undo what these handlers just did — stepping down into the list and then
+// immediately bouncing back to the capture row. Each handler that acts on a key
+// stops it here.
 function onCaptureKey(event) {
   const input = event.target;
+  if (["Enter", "ArrowDown", "Escape"].includes(event.key)) event.stopPropagation();
   if (event.key === "Enter") {
     event.preventDefault();
     const value = input.value;
@@ -505,6 +514,7 @@ function onCaptureKey(event) {
 }
 
 function onEditKey(event, task) {
+  if (["Enter", "Escape"].includes(event.key)) event.stopPropagation();
   if (event.key === "Enter") {
     event.preventDefault();
     const value = event.target.value.trim();
@@ -519,6 +529,7 @@ function onEditKey(event, task) {
 }
 
 function onDueKey(event, task) {
+  if (["Enter", "Escape"].includes(event.key)) event.stopPropagation();
   if (event.key === "Enter") {
     event.preventDefault();
     const due = parseDue(event.target.value, state.today);

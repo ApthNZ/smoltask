@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import os
 import sqlite3
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, timedelta
 
 DB_PATH = os.environ.get("SMOLTASK_DB", os.path.join(os.path.dirname(__file__), "smoltask.db"))
 
@@ -62,7 +62,18 @@ def init_db(conn: sqlite3.Connection) -> None:
 
 
 def now() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+    """Local time, with its offset.
+
+    Deliberately not UTC. "Ticked today" and "due today" mean the day the person
+    holding the notebook is living in, and every query that asks about a day
+    does it by comparing the first ten characters of a timestamp. Storing UTC
+    puts those ten characters a day out for half of every day in New Zealand,
+    which showed up as the day's tick count reading zero just after midnight.
+
+    The offset is kept so the value is still an unambiguous instant, and
+    ordering is unaffected for a notebook that lives on one machine.
+    """
+    return datetime.now().astimezone().isoformat(timespec="seconds")
 
 
 def today() -> str:
@@ -190,7 +201,7 @@ def mark_triaged(conn, task_id: int, day: str) -> dict | None:
 # --- triage ------------------------------------------------------------------
 
 
-def triage_queue(conn, day: str | None = None) -> dict:
+def triage_queue(conn, day: str | None = None, include_triaged: bool = False) -> dict:
     """The morning ritual's work list.
 
     Three reasons a task wants looking at, in the order they are presented:
@@ -203,6 +214,10 @@ def triage_queue(conn, day: str | None = None) -> dict:
 
     A task already triaged today is excluded, which is what stops the ritual
     asking twice and what decides whether it fires on its own.
+
+    `include_triaged` lifts that exclusion, for the on-demand run: having
+    triaged everything this morning must not make the ritual unavailable at
+    four in the afternoon when the day has moved on.
     """
     day = day or today()
     tomorrow = (date.fromisoformat(day) + timedelta(days=1)).isoformat()
@@ -212,6 +227,9 @@ def triage_queue(conn, day: str | None = None) -> dict:
         return [_row(r) for r in conn.execute(sql, params)]
 
     base = "SELECT * FROM task WHERE finished_at IS NULL AND (triaged_on IS NULL OR triaged_on < ?)"
+    if include_triaged:
+        # `?` is still bound, so both branches take the same parameters.
+        base = "SELECT * FROM task WHERE finished_at IS NULL AND (? IS NOT NULL)"
 
     unsorted = fetch(f"{base} AND quadrant IS NULL ORDER BY created_at, id", (day,))
     due = fetch(

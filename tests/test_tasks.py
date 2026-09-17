@@ -162,6 +162,24 @@ def test_triage_does_not_fire_again_once_something_is_triaged(client):
     assert len(body["queue"]) == 1, "the rest of the queue is still available on demand"
 
 
+def test_triage_can_still_be_run_on_demand_after_a_clean_sweep(client):
+    """The user asked for it to be re-runnable. Having triaged everything this
+    morning must not make the ritual unavailable this afternoon."""
+    task = add(client, "skipped this morning")
+    client.post(f"/api/tasks/{task['id']}/triaged")
+    body = client.get("/api/tasks").json()["triage"]
+    assert body["queue"] == [], "nothing left for an automatic run"
+    assert body["auto"] is False
+    assert [t["title"] for t in body["all"]] == ["skipped this morning"]
+
+
+def test_the_on_demand_list_still_only_offers_what_qualifies(client):
+    """It lifts the already-triaged-today exclusion, not the rules themselves."""
+    far = (date.fromisoformat(db.today()) + timedelta(days=30)).isoformat()
+    add(client, "ranked and not due for ages", quadrant=2, due=far)
+    assert client.get("/api/tasks").json()["triage"]["all"] == []
+
+
 def test_an_empty_page_never_fires_triage(client):
     assert client.get("/api/tasks").json()["triage"]["auto"] is False
 
@@ -216,6 +234,20 @@ def test_the_days_tick_count_is_reported(client):
         task = add(client, name)
         client.post(f"/api/tasks/{task['id']}/complete")
     assert client.get("/api/tasks").json()["done_today"] == 2
+
+
+def test_timestamps_are_local_so_day_boundaries_line_up(client):
+    """Every "today" question is answered by comparing the first ten characters
+    of a timestamp against the local date. A UTC timestamp puts those ten
+    characters a day out for half of every day east of Greenwich, which read as
+    "0 ticked today" just after midnight."""
+    from datetime import datetime
+
+    task = add(client, "ticked just now")
+    client.post(f"/api/tasks/{task['id']}/complete")
+    finished = client.get("/api/archive").json()["tasks"][0]["finished_at"]
+    assert finished[:10] == datetime.now().date().isoformat()
+    assert client.get("/api/tasks").json()["done_today"] == 1
 
 
 def test_nothing_is_ever_deleted(client):

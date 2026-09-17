@@ -201,18 +201,26 @@ Focus starts in the capture row, because capture is sacred.
 | `0` | Back to Unsorted |
 | `d` | Due date, then `t`oday / `m`onday / `+3` / a typed date / `-` to clear |
 | `J` | Promote to Jira |
+| `u` | Undo the last completion (stack) |
+| `p` | Enter or leave triage |
+| `a` / `t` | Archive / Tasks |
 | `/` | Back to the capture row |
 
 **Anywhere**
 
 | Key | Does |
 |---|---|
-| `Ctrl+Z` / `u` | Undo the last completion (stack) |
-| `p` | Enter or leave triage |
-| `a` / `t` | Archive / Tasks |
+| `Ctrl+Z` | Undo the last completion (stack) |
 
-`Ctrl+Z` in the capture row is the browser's text undo while the input has
-content, and task undo when it's empty.
+Only `Ctrl+Z` is global, and in the capture row it is the browser's text undo
+while the input has content, task undo when it's empty.
+
+**Every other shortcut is a plain letter, so it only acts while focus is in the
+list.** This is not a compromise, it is the point: capture is sacred, and a
+bare `a` that navigated to the Archive would eat the first keystroke of "audit
+the logs". `Esc` in an empty capture row steps down into the list, which is the
+documented way out — so reaching the archive from a standing start is `Esc`,
+`a`. The nav buttons are always clickable.
 
 ## 5. Data model
 

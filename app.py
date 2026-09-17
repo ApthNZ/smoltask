@@ -128,7 +128,11 @@ def read_tasks(conn=Depends(get_conn)):
     return {
         "today": day,
         "tasks": db.list_open(conn),
-        "triage": db.triage_queue(conn, day),
+        "triage": {
+            **db.triage_queue(conn, day),
+            # What an on-demand run would offer once today's queue is empty.
+            "all": db.triage_queue(conn, day, include_triaged=True)["queue"],
+        },
         "done_today": db.count_finished_on(conn, day),
     }
 
