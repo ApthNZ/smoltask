@@ -124,8 +124,23 @@ function parseDue(input, today) {
 
 // --- loading -----------------------------------------------------------------
 
+// A server in the wrong timezone gets every "today" question wrong — the tick
+// count, due today, the morning ritual — and does it silently. The browser
+// knows what day it is here, so say so once rather than being quietly wrong.
+function warnIfTheServerIsOnADifferentDay(serverToday) {
+  if (warnIfTheServerIsOnADifferentDay.warned) return;
+  const here = new Date();
+  const pad = (n) => String(n).padStart(2, "0");
+  const local = `${here.getFullYear()}-${pad(here.getMonth() + 1)}-${pad(here.getDate())}`;
+  if (serverToday && serverToday !== local) {
+    warnIfTheServerIsOnADifferentDay.warned = true;
+    toast(`This server thinks today is ${serverToday}; your machine says ${local}. Set TZ.`);
+  }
+}
+
 async function loadTasks({ autoTriage = false } = {}) {
   const data = await api("/api/tasks");
+  warnIfTheServerIsOnADifferentDay(data.today);
   state.today = data.today;
   state.tasks = data.tasks;
   state.triage = data.triage;

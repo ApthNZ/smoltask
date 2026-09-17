@@ -144,6 +144,10 @@ With Docker:
 docker compose up -d --build
 ```
 
+**Set `TZ`** in a `.env` file to the timezone you live in. Every "today" in the
+app is the server's today, and a container without it runs in UTC — the page
+will warn you if its date and your browser's disagree.
+
 Read the comments in `docker-compose.yml` first — it publishes the port to your
 whole network, and the recommended binding is `127.0.0.1:` unless you have a
 reason.

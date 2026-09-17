@@ -22,6 +22,13 @@ services:
     # host directory. Change to match your own uid:gid, or drop the line and
     # chown ./data to 10001 instead.
     user: "1000:1000"
+    environment:
+      # This matters more here than in most apps. Every "today" question — the
+      # day's tick count, due today, stale for a week — is answered against the
+      # server's local date, and a container with no TZ runs in UTC. Left unset
+      # east of Greenwich, the page is a day behind its owner for half of every
+      # day. Set TZ in .env to the timezone of the person using it.
+      TZ: ${TZ:-UTC}
     volumes:
       - ./data:/data
     restart: unless-stopped

@@ -98,6 +98,13 @@ def test_input_handlers_stop_keys_reaching_the_global_handler():
         assert "event.stopPropagation()" in body, f"{handler} lets its keys bubble"
 
 
+def test_a_wrong_server_timezone_is_surfaced_not_swallowed():
+    """A container with no TZ runs in UTC and gets every "today" question wrong
+    without ever failing. The browser knows better and says so."""
+    assert "warnIfTheServerIsOnADifferentDay" in APP_JS
+    assert "Set TZ." in APP_JS
+
+
 def test_the_page_never_reloads_itself():
     """Firefox restores form-control state across location.reload() by position,
     so a reload that drops a row shifts every later row onto a restored value
