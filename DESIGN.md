@@ -1,0 +1,360 @@
+# smoltask — design
+
+> **smoltask — a notebook that ticks.**
+> A task takes two seconds to write and one key to be rid of. That is the whole
+> feature list.
+
+A paper to-do list works right up until the page fills with a mix of done and
+not-done and you have to copy the survivors onto tomorrow's page. smoltask is
+that page, except the ticked lines take themselves away, the survivors carry
+forward on their own, and every morning it asks you which of them actually
+matter today.
+
+**The test every feature has to pass:** capture a task in under two seconds,
+tick it when it's done, and never lose one to a mis-click. Anything that does
+not serve that sentence does not go in.
+
+---
+
+## 1. The problem being solved
+
+Two tools, each half-right:
+
+- **Jira** is where work that other people need to see lives. It costs thirty
+  seconds and four mandatory fields to create a ticket, and fifteen tickets make
+  a board unreadable. Not a capture tool.
+- **Outlook tasks** capture in two seconds, which is the one thing it gets
+  right. But completion is *destructive and invisible*: a completed task is
+  gone, functionally unfindable, and a laggy machine plus a block of clicks is
+  an unrecoverable event.
+
+The gap is the notebook. Someone says "could you email bob", you write
+`Email bob`, and later you tick it. smoltask is that, with the carry-forward
+automated and the mis-click recoverable.
+
+## 2. Non-goals
+
+Stated up front because this list is the product:
+
+No assignees. No projects. No tags or labels. No attachments. No subtasks. No
+recurrence. No reminders or notifications. No multiple lists. No delete button.
+No cancelled state, no workflow, no status beyond "on the page" and "off it".
+No sync. No mobile app. No auth. No multi-user. No email integration — it was
+considered and binned.
+
+## 3. Screens
+
+Two. `Tasks` and `Archive`, in a nav bar borrowed from smolplan.
+
+### 3.1 Tasks — the page
+
+Single centred column, max-width ~720px. Notebook density: `--row: 30px` per
+task, one line each, a `--line-soft` rule between them like ruled paper. No
+cards, no padding, no chrome.
+
+**The capture row** sits at the top of the list and holds focus on page load.
+An empty tick box, then a bare text input. Type, `Enter`, the task commits, the
+input clears, focus stays put. Nothing else happens — no prompt, no modal, no
+second step. The task lands **unsorted**, which is a legitimate resting state.
+
+Input is hard-capped at **80 characters**, single line, no wrapping possible. A
+counter appears at 65 and turns `--red` at 80. If it doesn't fit on a notebook
+line it isn't one thought.
+
+**A task row:**
+
+```
+[ ] Email bob about the capacity numbers                    PROJ-412   Fri
+```
+
+Tick box left. Title. Jira key and due date right-aligned and muted; the date
+goes `--red` when overdue and nothing else moves — no banner, no count, no
+nagging. Quadrant is shown by which section the row is in, not by a badge, so
+the row itself stays clean.
+
+**Sections**, in this order:
+
+| Section | Eisenhower | Header reads |
+|---|---|---|
+| Now | do — urgent + important | `Now — urgent & important` |
+| Next | schedule — important, not urgent | `Next — important, not urgent` |
+| Last | delegate — urgent, not important | `Last — urgent, not important` |
+| Never | delete — neither | `Never — neither` |
+| Unsorted | — | `Unsorted` |
+
+The axis is printed in muted text beside the name so the mapping is learnable
+without a legend. The names are ordinal rather than instructional, because with
+no assignees "delegate" is meaningless and "delete" is a lie — nothing is ever
+deleted, it just never rises to the top.
+
+**Unsorted sits at the bottom.** A task that has not been triaged has not earned
+a position, and putting the inbox on top would rank the most recently captured
+thing as the most important thing — which is exactly the reflex the ritual
+exists to correct. New tasks wait at the bottom until triage places them.
+
+Within a section: due date ascending, undated last, then created ascending —
+oldest first, the order a notebook would have them in.
+
+**Empty state.** When the page is clear it says so in one line, with the day's
+count as the reward:
+
+```
+Nothing on the page. 7 ticked today.
+```
+
+### 3.2 Completion and undo
+
+Ticking removes the row. That is the inbox-zero payoff and it is deliberate —
+but it means undo carries the weight that strike-through would have carried, so
+undo has to be good:
+
+- An undo bar appears at the bottom: `Email bob — done.  Undo (Ctrl+Z)`.
+- `Ctrl+Z` is a **stack**, not one step. The laggy-machine-completed-five-rows
+  case means pressing it five times. That case is the reason this app exists; it
+  is not allowed to be the case undo can't handle.
+- Anything older than the session is recovered from the Archive instead.
+
+Note that keyboard completion (`space` on the focused row, focus then moves down
+one) has no mis-click failure mode at all — the list reflowing under a mouse
+cursor is precisely the Outlook trap. The keyboard is the good path; the mouse
+is the fallback.
+
+### 3.3 Archive — what left the page
+
+A table: outcome, task, created, finished. Click a header to sort by created or
+finished, either direction.
+
+**Outcome** is the marker, and it has two values because there are two ways off
+the page:
+
+| Marker | Means |
+|---|---|
+| `✓` | You ticked it. |
+| `→ PROJ-412` | It became a Jira ticket. Links to it. |
+
+This is not a second kind of completion and you never choose it — it's a record
+of which button you pressed. It exists so that "did I ever deal with X?" can
+answer *"yes, it's PROJ-412"* rather than just *"yes"*. Filter buttons: All /
+Done / Promoted.
+
+A filter-as-you-type box sits above the table. It's the recovery path for
+anything past the undo stack, and it is the only search in the product.
+
+**Restore** on each row puts the task back on the page with its quadrant and due
+date intact. Same operation as undo, same endpoint.
+
+### 3.4 The morning ritual — a mode, not a page
+
+Paper makes you rewrite yesterday's survivors every morning. The drudgery is
+annoying; the triage it forces is the valuable part. smoltask does the copying
+and charges you the triage.
+
+**Fires** on the first load of a calendar day when the queue is non-empty, and
+any time you press `p`. Re-runnable on demand, always skippable, never blocks
+capture — typing in the capture row just works and triage picks up after.
+
+**It is a mode on the Tasks page, not a modal.** The list stays visible and
+slightly dimmed; one task is highlighted at a time. A thin bar at the top:
+
+```
+Triage — 4 to sort, 2 due soon, 1 stale                        Esc to leave
+```
+
+**The queue**, in order:
+
+1. **Unsorted** tasks, oldest first — they are sitting at the bottom of the
+   page until triage places them, so this is what empties the queue.
+2. **Due today or tomorrow, whatever the quadrant.** This is the pressure valve:
+   sorting by quadrant then date means a `Quick` task due tomorrow sorts below
+   every `Now` task, and "I'll have that back to you tomorrow" is exactly the
+   commitment you don't want buried. The ritual surfaces it regardless.
+3. **Stale `Now`** — anything sitting in the urgent-and-important section for
+   more than seven days. That's the Eisenhower drift: it was never really
+   urgent, or you're avoiding it. Either way it needs re-ranking or ticking.
+
+**Keys in triage:** `1`–`4` assign and advance, `d` set a due date, `space`
+complete it, `n` or `Enter` skip, `Esc` leave. Completing during triage matters
+— triage is where you notice a task stopped being a thing.
+
+When the queue empties the bar reads `Page is triaged.` and the mode exits.
+
+## 4. Keymap
+
+Focus starts in the capture row, because capture is sacred.
+
+**Capture row**
+
+| Key | Does |
+|---|---|
+| `Enter` | Commit, clear, stay |
+| `↓` | Move focus into the list |
+| `Esc` | Clear the input; if already empty, move into the list |
+
+**List, with a row focused**
+
+| Key | Does |
+|---|---|
+| `j` / `↓`, `k` / `↑` | Move focus |
+| `space` / `x` | Complete |
+| `Enter` / `e` | Edit inline (`Enter` saves, `Esc` cancels) |
+| `1`–`4` | Set quadrant |
+| `0` | Back to Unsorted |
+| `d` | Due date, then `t`oday / `m`onday / `+3` / a typed date / `-` to clear |
+| `J` | Promote to Jira |
+| `/` | Back to the capture row |
+
+**Anywhere**
+
+| Key | Does |
+|---|---|
+| `Ctrl+Z` / `u` | Undo the last completion (stack) |
+| `p` | Enter or leave triage |
+| `a` / `t` | Archive / Tasks |
+
+`Ctrl+Z` in the capture row is the browser's text undo while the input has
+content, and task undo when it's empty.
+
+## 5. Data model
+
+One SQLite file, no migrations to speak of, same as smolplan.
+
+```sql
+CREATE TABLE task (
+  id          INTEGER PRIMARY KEY,
+  title       TEXT NOT NULL CHECK (length(title) BETWEEN 1 AND 80),
+  quadrant    INTEGER CHECK (quadrant IN (1,2,3,4)),   -- NULL = unsorted
+  due         TEXT,                                     -- 'YYYY-MM-DD', NULL = none
+  created_at  TEXT NOT NULL,                            -- ISO8601 UTC
+  finished_at TEXT,                                     -- NULL = on the page
+  outcome     TEXT CHECK (outcome IN ('done','promoted')),
+  jira_key    TEXT,                                     -- set iff promoted
+  triaged_on  TEXT,                                     -- last date triage touched it
+  CHECK ((finished_at IS NULL) = (outcome IS NULL)),
+  CHECK ((outcome = 'promoted') = (jira_key IS NOT NULL))
+);
+```
+
+Notes on why it's this shape:
+
+- **"On the page" is `finished_at IS NULL`.** The Archive is the complement.
+  There is no status column and no state machine.
+- **Rows are never deleted.** A task made by accident gets ticked like anything
+  else. The archive accumulating a little junk is the accepted cost of not
+  having a delete button.
+- **`quadrant` is an integer** so it sorts without a lookup, and `NULL` is a
+  real value meaning unsorted rather than a fifth quadrant.
+- **`triaged_on`** is what stops the ritual re-asking about something you looked
+  at this morning, and it gives "stale" a definition. It also removes the need
+  for any app-state table: the ritual fires when the queue is non-empty and
+  nothing was triaged today.
+- **No undo table.** Undo is `restore`, which clears `finished_at`, `outcome`
+  and `jira_key`. The stack of recently-completed ids lives in the page for the
+  session; the Archive covers anything older.
+
+## 6. API
+
+```
+GET    /api/tasks                    on the page, sorted for display
+GET    /api/archive?sort=&dir=&q=&outcome=
+POST   /api/tasks                    {title}
+PATCH  /api/tasks/:id                {title?, quadrant?, due?}
+POST   /api/tasks/:id/complete
+POST   /api/tasks/:id/restore        serves both undo and archive restore
+POST   /api/tasks/:id/promote        Jira; later
+GET    /health                       opens the database, like smolplan's
+```
+
+## 7. Jira promote
+
+One-way, one-shot, no sync. The task becomes a ticket, keeps the key, and
+**moves to the Archive** marked `→ PROJ-412`. If it's in Jira it doesn't need to
+be in two places.
+
+Constraints to design around, settled later but not forgotten:
+
+- On-prem Jira is **Data Center**, so REST **v2**, not the v3 in most docs.
+  Auth by PAT (8.14+).
+- **Mandatory fields will reject the create.** Project, issue type and any
+  required field values come from config; there is no field editor and there
+  never will be. If a project needs six mandatory fields, it isn't a promote
+  target.
+- On rejection: show what Jira said, leave the task exactly where it was.
+- The 80-character title becomes the summary. There is no description, because
+  there is nowhere in smoltask to have written one. That's the point.
+
+## 8. Repo, history and secrets
+
+**Model B: one history, two remotes.**
+
+- `smoltask-private` is where work goes day to day.
+- `smoltask` is a true **fast-forward mirror** — `public/main` is always an
+  ancestor of `main`, so publishing is `git push public main`, forever.
+
+This only holds if nothing that can't be public ever enters the history. A
+private repo that later mirrors to a public one is a **delay, not a filter**: it
+changes when a commit becomes visible, not whether it does. The one advantage
+over a single public repo is the rewrite window — something committed but not
+yet pushed publicly can still be rebased out of existence.
+
+Its sibling project learned this the expensive way. One day-one commit put a
+deployment host, a private subnet and a port into the history. The files were
+scrubbed a few commits later; the commits were immortal, and publishing stayed a
+hand-built squash for as long as that history lived.
+
+Therefore, before any app code exists:
+
+- `.gitignore`, `.gitleaks.toml` and the publish-guard pre-push hook at
+  `git init`, not after the first scare.
+- Create the public repo and push to it **immediately**, while it's three files.
+  A mirror that exists from commit one keeps the fast-forward property real.
+- Every deployment specific behind an env var with a sane default —
+  `SMOLTASK_PORT`, `SMOLTASK_DB` — with the real values in a gitignored `.env`.
+  A compose file that reads `${SMOLTASK_PORT:-8108}` is the template.
+- The deployment host's name, port and firewall situation live wherever that
+  machine is documented — never here. The app repo does not know where it runs.
+- Machine-specific context for Claude goes in a gitignored `CLAUDE_LOCAL.md`.
+
+**New stakes:** smoltask talks to Jira, so a corporate hostname, a project key
+and a **PAT** are in play — the sibling project had no outbound network and
+genuinely held no secrets. All three live in `.env`, never in a config file,
+never in a test fixture, never in a commit message explaining the setup. Add a
+gitleaks rule for Jira PATs.
+
+## 9. Stack and deployment
+
+Deliberately identical to its sibling project, so the setup guide carries over:
+
+- Python + FastAPI on uvicorn, SQLite, no-build-step vanilla JS.
+- The sibling project's `static/app.css` tokens verbatim — `--bg`, `--line-soft`, `--row:
+  30px`, tabular numerals, light and dark. Red means "a human needs to look at
+  this", which here means overdue and nothing else.
+- Docker Compose on a development box; plain `uvicorn app:app` on the Windows
+  laptop that actually uses it, which is the machine that matters — it's the
+  only one that can reach Jira.
+- Bound to `127.0.0.1` wherever it holds real work. This is your day laid out in
+  one list, which is more than it sounds like.
+- No authentication, and the README says so in a warning block up top.
+
+## 10. Build order
+
+Each step ends somewhere usable, and the gate exists before the code does.
+
+| # | Step | Ends with |
+|---|---|---|
+| 1 | Scaffolding: `.gitignore`, gitleaks, publish-guard, LICENSE, SECURITY.md, README stub, `.env.example`. Push to both remotes. | An empty, publish-safe repo with a live mirror. |
+| 2 | CI: `ci.yml`, `secret-scan.yml`, Dependabot + auto-merge, copied from smolplan. | The test gate exists before there are tests to run. |
+| 3 | Data layer and API, with the CHECK constraints and a test suite. | `POST /api/tasks` works. |
+| 4 | Tasks page: capture, list, tick, undo stack. No priority, no dates. | **Usable.** Already beats Outlook tasks. |
+| 5 | Archive: outcome marker, sort, filter, search, restore. | Nothing can be lost. |
+| 6 | Quadrants: sections, `1`–`4`, sort order. | The page is ranked. |
+| 7 | The morning ritual. | Carry-forward is automated. |
+| 8 | Due dates. | Commitments have a date. |
+| 9 | Jira promote. | Tasks that grew up can leave. |
+
+Stopping after step 5 would still be a product worth having. That's the test of
+whether the order is right.
+
+## 11. Open
+
+- Empty-state copy, and whether the day's tick count is a nice reward or a
+  gimmick that gets old by Thursday.
