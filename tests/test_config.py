@@ -55,3 +55,12 @@ def test_compose_takes_the_port_from_the_environment():
 
 def test_the_container_does_not_run_as_root():
     assert "USER smoltask" in (ROOT / "Dockerfile").read_text()
+
+
+def test_automerge_cannot_run_on_the_public_mirror():
+    """The mirror is a fast-forward of this history. A merge there would put a
+    commit on public/main that private/main lacks, and every later push would be
+    refused as a non-fast-forward."""
+    workflow = (ROOT / ".github" / "workflows" / "dependabot-automerge.yml").read_text()
+    assert "github.actor == 'dependabot[bot]'" in workflow
+    assert "endsWith(github.repository, '-private')" in workflow
