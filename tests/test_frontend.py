@@ -113,6 +113,16 @@ def test_adding_a_task_keeps_the_capture_line():
     assert 'focusInput("#capture");' in body
 
 
+def test_the_date_box_says_how_to_clear_a_date():
+    """It said so with a bare trailing "- ", in a box too narrow to show it. A
+    hint that is cut off the end is the same as no hint: the way to clear a due
+    date was, in practice, undocumented."""
+    assert 'placeholder: "tod · +3 · fri · 2026-09-30 · empty clears"' in APP_JS
+    # Pressing Enter on an empty box is what the hint now promises.
+    parser = APP_JS[APP_JS.index("function parseDue("):][:600]
+    assert 'if (text === "" || text === "-") return null;' in parser
+
+
 def test_dates_accept_any_prefix_of_the_word():
     """"tod" is as natural a thing to type as "t", and one blessed abbreviation
     per word is a rule nobody can remember."""
@@ -120,7 +130,7 @@ def test_dates_accept_any_prefix_of_the_word():
     assert '"tomorrow".startsWith(text)' in APP_JS
     # Today is tested first, so the shared "t"/"to" prefix is not ambiguous.
     assert APP_JS.index('"today".startsWith(text)') < APP_JS.index('"tomorrow".startsWith(text)')
-    assert 'placeholder: "tod / tom / fri' in APP_JS
+    assert 'placeholder: "tod · +3 · fri' in APP_JS
 
 
 def test_the_legend_names_actions_not_parts_of_the_ui():

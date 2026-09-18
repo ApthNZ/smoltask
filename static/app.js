@@ -321,7 +321,7 @@ function taskRow(task, hue = null) {
       ? el("input", {
           class: "duebox",
           "data-due": task.id,
-          placeholder: "tod / tom / fri / +3 / 2026-09-30 / -",
+          placeholder: "tod · +3 · fri · 2026-09-30 · empty clears",
           autocomplete: "off",
           onkeydown: (e) => onDueKey(e, task),
           onblur: () => { state.dueFor = null; render(); },

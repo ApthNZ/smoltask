@@ -193,8 +193,10 @@ main {
 .triage b { font-weight: 600; }
 .triage .why { color: var(--muted); }
 
+/* Wide enough for the whole hint. At 190px the tail was cut off, which is the
+   same as not documenting it — the way to clear a date was invisible. */
 .duebox {
-  flex: none; width: 190px;
+  flex: none; width: 268px;
   border: 1px solid var(--accent); border-radius: 4px; background: var(--panel);
   color: var(--text); font: inherit; font-size: 12px; padding: 1px 5px;
 }
