@@ -32,6 +32,7 @@ CREATE INDEX IF NOT EXISTS task_open ON task(finished_at);
 
 MAX_TITLE = 80
 STALE_DAYS = 7
+NEVER = 4  # the quadrant that says this will not happen
 
 # Display order. Quadrants rank 1..4; unsorted sorts last because a task that
 # has not been triaged has not earned a position, and an inbox on top would rank
@@ -59,6 +60,12 @@ def connect(path: str | None = None) -> sqlite3.Connection:
 def init_db(conn: sqlite3.Connection) -> None:
     conn.executescript(SCHEMA)
     conn.commit()
+
+
+def is_disowned(task: dict) -> bool:
+    """A date promised to someone and disowned in the same breath: the task
+    carries a due date and is ranked `Never`."""
+    return task.get("quadrant") == NEVER and bool(task.get("due"))
 
 
 def now() -> str:
@@ -192,7 +199,8 @@ def restore(conn, task_id: int) -> dict | None:
     return get_task(conn, task_id)
 
 
-def mark_triaged(conn, task_id: int, day: str) -> dict | None:
+def mark_triaged(conn, task_id: int, day: str | None) -> dict | None:
+    """`None` clears the stamp, putting the task back in the queue."""
     conn.execute("UPDATE task SET triaged_on = ? WHERE id = ?", (day, task_id))
     conn.commit()
     return get_task(conn, task_id)
@@ -204,13 +212,20 @@ def mark_triaged(conn, task_id: int, day: str) -> dict | None:
 def triage_queue(conn, day: str | None = None, include_triaged: bool = False) -> dict:
     """The morning ritual's work list.
 
-    Three reasons a task wants looking at, in the order they are presented:
+    Four reasons a task wants looking at, in the order they are presented:
 
     1. unsorted — it has no quadrant, so it is sitting at the bottom of the page
-    2. due — today or tomorrow, whatever its quadrant, because sorting by
+    2. disowned — it carries a date and is ranked `Never`, which is a date
+       promised to someone and disowned in the same breath
+    3. due — today or tomorrow, whatever its quadrant, because sorting by
        quadrant first would otherwise bury a commitment made to someone else
-    3. stale — it has been in `Now` for a week, which usually means it was never
+    4. stale — it has been in `Now` for a week, which usually means it was never
        really urgent or it is being avoided
+
+    A task can qualify under more than one; it appears once, under the first
+    that applies. `disowned` outranks `due` deliberately — for a dated `Never`
+    task, "you said you would not do this" is the part you did not already
+    know.
 
     A task already triaged today is excluded, which is what stops the ritual
     asking twice and what decides whether it fires on its own.
@@ -232,6 +247,9 @@ def triage_queue(conn, day: str | None = None, include_triaged: bool = False) ->
         base = "SELECT * FROM task WHERE finished_at IS NULL AND (? IS NOT NULL)"
 
     unsorted = fetch(f"{base} AND quadrant IS NULL ORDER BY created_at, id", (day,))
+    disowned = fetch(
+        f"{base} AND quadrant = {NEVER} AND due IS NOT NULL ORDER BY due, id", (day,)
+    )
     due = fetch(
         f"{base} AND quadrant IS NOT NULL AND due IS NOT NULL AND due <= ? ORDER BY due, id",
         (day, tomorrow),
@@ -244,7 +262,8 @@ def triage_queue(conn, day: str | None = None, include_triaged: bool = False) ->
 
     seen: set[int] = set()
     queue: list[dict] = []
-    for group, reason in ((unsorted, "unsorted"), (due, "due"), (stale, "stale")):
+    for group, reason in ((unsorted, "unsorted"), (disowned, "disowned"),
+                          (due, "due"), (stale, "stale")):
         for task in group:
             if task["id"] in seen:
                 continue
@@ -258,9 +277,8 @@ def triage_queue(conn, day: str | None = None, include_triaged: bool = False) ->
     return {
         "queue": queue,
         "counts": {
-            "unsorted": sum(1 for t in queue if t["reason"] == "unsorted"),
-            "due": sum(1 for t in queue if t["reason"] == "due"),
-            "stale": sum(1 for t in queue if t["reason"] == "stale"),
+            reason: sum(1 for t in queue if t["reason"] == reason)
+            for reason in ("unsorted", "disowned", "due", "stale")
         },
         # Fires on the first load of a day with work waiting. Pressing `p` runs
         # it again regardless; this flag only drives the automatic open.

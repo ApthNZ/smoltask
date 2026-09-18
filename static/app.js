@@ -356,20 +356,23 @@ function triageBar() {
   const remaining = (reason) => left.filter((t) => t.reason === reason).length;
   const parts = [];
   if (remaining("unsorted")) parts.push(`${remaining("unsorted")} to sort`);
+  if (remaining("disowned")) parts.push(`${remaining("disowned")} dated Never`);
   if (remaining("due")) parts.push(`${remaining("due")} due soon`);
   if (remaining("stale")) parts.push(`${remaining("stale")} stale`);
 
   const why = {
     unsorted: "not triaged yet",
+    disowned: "dated, but ranked Never",
     due: "due today or tomorrow",
-    stale: `in Now for over a week`,
+    stale: "in Now for over a week",
   }[task && task.reason] || "";
 
+  // No key hints here: the legend at the foot of the page already shows the
+  // triage keys, and repeating them made the bar wrap onto two lines.
   return el("div", { class: "triage" },
     el("b", {}, task ? "Triage" : "Page is triaged."),
     task ? el("span", {}, `${state.qi + 1} of ${state.queue.length} — ${parts.join(", ")}`) : null,
-    task ? el("span", { class: "why" }, `· ${why}`) : null,
-    el("span", { class: "hint" }, task ? "1-4 rank · d date · space done · n skip · Esc leave" : "Esc to leave"));
+    task ? el("span", { class: "why" }, `· ${why}`) : null);
 }
 
 // --- archive -----------------------------------------------------------------

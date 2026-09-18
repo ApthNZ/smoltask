@@ -190,8 +190,15 @@ def patch_task(task_id: int, payload: TaskPatch, conn=Depends(get_conn)):
         bad("Nothing to change.")
 
     updated = db.update_task(conn, task_id, fields)
-    # Any deliberate change counts as having looked at it, so triage does not
-    # ask again the same day.
+
+    # A deliberate change counts as having looked at the task, so triage does
+    # not ask again the same day. The exception is a change that *creates* a
+    # contradiction: ranking a dated task `Never` is the moment the problem
+    # appears, not the moment it is resolved, and marking it looked-at would
+    # hide it until tomorrow. The stamp is cleared instead, so triage asks —
+    # once. Skipping it there silences it for the day like anything else.
+    if db.is_disowned(updated) and not db.is_disowned(task):
+        return db.mark_triaged(conn, task_id, None) or updated
     return db.mark_triaged(conn, task_id, db.today()) or updated
 
 

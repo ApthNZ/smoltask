@@ -196,16 +196,36 @@ Triage — 4 to sort, 2 due soon, 1 stale                        Esc to leave
 
 1. **Unsorted** tasks, oldest first — they are sitting at the bottom of the
    page until triage places them, so this is what empties the queue.
-2. **Due today or tomorrow, whatever the quadrant.** This is the pressure valve:
-   sorting by quadrant then date means a `Quick` task due tomorrow sorts below
+2. **Dated, but ranked `Never`.** A date promised to someone and disowned in
+   the same breath. It outranks the next one deliberately: for a dated `Never`
+   task due tomorrow, "you said you would not do this" is the part you did not
+   already know.
+3. **Due today or tomorrow, whatever the quadrant.** This is the pressure valve:
+   sorting by quadrant then date means a `Last` task due tomorrow sorts below
    every `Now` task, and "I'll have that back to you tomorrow" is exactly the
    commitment you don't want buried. The ritual surfaces it regardless.
-3. **Stale `Now`** — anything sitting in the urgent-and-important section for
+4. **Stale `Now`** — anything sitting in the urgent-and-important section for
    more than seven days. That's the Eisenhower drift: it was never really
    urgent, or you're avoiding it. Either way it needs re-ranking or ticking.
 
+A task can qualify under more than one. It appears once, under the first that
+applies.
+
+**Creating a contradiction does not silence it.** Every other deliberate change
+counts as having looked at a task, which is what stops the ritual asking twice
+in a day. Ranking a dated task `Never` is the exception: that is the moment the
+problem appears, not the moment it is resolved, so the looked-at stamp is
+*cleared* rather than set and triage asks — once. Skipping it there silences it
+for the day like anything else, and it comes back tomorrow, because the
+contradiction is still there. Clearing the date or moving it out of `Never` is a
+real answer and ends it.
+
+**The bar carries no key hints.** The legend at the foot of the page already
+shows the triage keys; repeating them made the bar wrap.
+
 **Keys in triage:** `1`–`4` assign and advance, `d` set a due date, `space`
-complete it, `n` skip, `Esc` leave. Completing during triage matters — triage is
+complete it, `n` skip, `Esc` leave. They are on the legend at the foot, as
+everywhere else. Completing during triage matters — triage is
 where you notice a task stopped being a thing.
 
 `↑` `↓` and `k` `j` walk the queue. They are *navigation*: they mark nothing
@@ -409,10 +429,6 @@ whether the order is right.
 
 - Empty-state copy, and whether the day's tick count is a nice reward or a
   gimmick that gets old by Thursday.
-- Whether a date ranked `Never` should also be pulled into the morning ritual,
-  rather than only turning red where it sits. The whole page is visible at once,
-  so it will be seen — but triage is where contradictions are meant to surface,
-  and this is one.
 - Whether the unselected bullets are too faint to read as "click me". They are
   `--line` until hover on purpose, so the page stays quiet, but the affordance
   is only discoverable by trying it.

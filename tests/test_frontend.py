@@ -251,6 +251,12 @@ def test_a_date_on_a_never_task_is_flagged():
     assert "const NEVER = 4;" in APP_JS
 
 
+def test_triage_explains_a_disowned_date():
+    """The queue carries the reason; the bar has to be able to say it."""
+    assert 'disowned: "dated, but ranked Never"' in APP_JS
+    assert 'dated Never`' in APP_JS, "the bar does not count them"
+
+
 def test_red_still_means_only_one_thing():
     """The rule is that red on the page means a date needs attention. It must
     not leak onto anything else."""

@@ -86,6 +86,8 @@ page goes into triage: one task lit at a time, the rest dimmed, `1`–`4` to ran
 and move on. `p` runs it again whenever you like. It asks about three things:
 
 - tasks you haven't ranked
+- anything **dated and ranked Never** — a date you promised someone and disowned
+  in the same breath
 - anything **due today or tomorrow, whatever its quadrant** — because ranking by
   quadrant first would otherwise bury a commitment you made to someone else
 - anything that's sat in **Now** for a week, which usually means it was never
@@ -100,8 +102,9 @@ A date turns red when it needs a human and nothing else happens. There are no
 reminders, no notifications and no recurrence, and there will not be.
 
 A date needs a human for one of two reasons: it has passed, or the task is
-ranked **Never** — which means you promised someone a date and told yourself
-you will never do it. That one is worth being told about.
+ranked **Never** — which means you promised someone a date and told yourself you
+will never do it. The morning ritual asks about that one too, once, and stops if
+you tell it you meant it.
 
 ## Keys
 

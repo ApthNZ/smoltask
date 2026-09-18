@@ -191,7 +191,6 @@ main {
   .triage { background: var(--hint); }
 }
 .triage b { font-weight: 600; }
-.triage .hint { color: var(--muted); margin-left: auto; font-size: 12px; }
 .triage .why { color: var(--muted); }
 
 .duebox {
