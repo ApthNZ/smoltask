@@ -19,6 +19,8 @@ read and write every task, by design.
 | Quadrants constrained to 1–4 at the API *and* by a `CHECK` in the schema | `app.py`, `db.py` | `test_quadrants_are_bounded` |
 | Static mount cannot escape its directory | `app.py` | `test_static_mount_does_not_escape` |
 | No database path or filesystem detail in any response | `app.py` | `test_no_route_exposes_the_database_path` |
+| Ids outside SQLite's 64-bit range are a miss, not a driver error | `db.py:is_possible_id` | `test_an_id_too_large_for_sqlite_is_a_miss_not_a_crash` |
+| No reachable input returns 5xx; schema invariants survive any operation order | repo-wide | `tests/test_robustness.py` |
 | No hardcoded secrets in the tree | repo-wide | `test_no_hardcoded_secrets` |
 | Database file is not tracked by git | `.gitignore` | `test_database_file_is_not_tracked` |
 

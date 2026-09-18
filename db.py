@@ -34,6 +34,12 @@ MAX_TITLE = 80
 STALE_DAYS = 7
 NEVER = 4  # the quadrant that says this will not happen
 
+# SQLite stores integers in 64 bits. A larger id cannot name a row, and handing
+# one to the driver raises OverflowError rather than simply not matching — which
+# turns "no such task" into a 500.
+INT_MAX = 2**63 - 1
+INT_MIN = -(2**63)
+
 # Display order. Quadrants rank 1..4; unsorted sorts last because a task that
 # has not been triaged has not earned a position, and an inbox on top would rank
 # the most recently captured thing as the most important thing.
@@ -104,7 +110,17 @@ def _row(r: sqlite3.Row) -> dict:
     }
 
 
+def is_possible_id(task_id) -> bool:
+    """Could this value name a row at all? Anything outside SQLite's integer
+    range cannot, and asking the driver about it is an error rather than a
+    miss."""
+    return isinstance(task_id, int) and not isinstance(task_id, bool) \
+        and INT_MIN <= task_id <= INT_MAX
+
+
 def get_task(conn, task_id: int) -> dict | None:
+    if not is_possible_id(task_id):
+        return None
     row = conn.execute("SELECT * FROM task WHERE id = ?", (task_id,)).fetchone()
     return _row(row) if row else None
 
