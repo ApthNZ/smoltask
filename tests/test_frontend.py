@@ -265,6 +265,31 @@ def test_red_still_means_only_one_thing():
     assert all(".due.over" in r or "#toast" in r for r in reds), reds
 
 
+def test_the_page_notices_the_day_changing_under_it():
+    """A notebook gets left open. A tab opened yesterday would keep calling
+    yesterday "today": dates a day out reading as due today, and a morning
+    ritual that never fires because the morning never came."""
+    assert "function checkForDayRollover()" in APP_JS
+    assert "setInterval(checkForDayRollover, DAY_CHECK_MS);" in APP_JS
+    body = APP_JS[APP_JS.index("function checkForDayRollover()"):][:520]
+    assert "localDate() === state.today" in body
+    # It must not yank the page out from under someone mid-sentence.
+    assert "state.editing !== null || state.dueFor !== null" in body
+    assert "capture.value" in body
+
+
+def test_a_date_in_another_year_says_so():
+    """Without the year, a date twelve months out reads exactly like one next
+    month."""
+    body = APP_JS[APP_JS.index("function formatDue("):][:700]
+    assert "date.getFullYear() === Number(today.slice(0, 4))" in body
+
+
+def test_there_is_one_place_that_knows_what_day_it_is_here():
+    assert "function localDate(" in APP_JS
+    assert APP_JS.count("getMonth() + 1") == 1, "the local-date calculation is duplicated"
+
+
 def test_the_page_never_reloads_itself():
     """Firefox restores form-control state across location.reload() by position,
     so a reload that drops a row shifts every later row onto a restored value

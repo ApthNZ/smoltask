@@ -20,6 +20,7 @@ const SECTIONS = [...QUADRANTS, UNSORTED];
 const MAX_TITLE = 80;
 const COUNTER_FROM = 65;
 const UNDO_VISIBLE_MS = 12000;
+const DAY_CHECK_MS = 60000;
 
 const WEEKDAYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
@@ -109,20 +110,27 @@ function toast(message, tone = "warn") {
 
 const dayNumber = (iso) => Math.floor(Date.parse(`${iso}T00:00:00`) / 86400000);
 
+function localDate(when = new Date()) {
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${when.getFullYear()}-${pad(when.getMonth() + 1)}-${pad(when.getDate())}`;
+}
+
 function formatDue(due, today) {
   const delta = dayNumber(due) - dayNumber(today);
   if (delta === 0) return "today";
   if (delta === 1) return "tomorrow";
   const date = new Date(`${due}T00:00:00`);
   if (delta > 1 && delta < 7) return WEEKDAYS[date.getDay()].replace(/^./, (c) => c.toUpperCase());
-  return `${date.getDate()} ${MONTHS[date.getMonth()]}`;
+  // The year only when it is not this one — otherwise a date twelve months out
+  // reads exactly like one next month.
+  const year = date.getFullYear() === Number(today.slice(0, 4)) ? "" : ` ${date.getFullYear()}`;
+  return `${date.getDate()} ${MONTHS[date.getMonth()]}${year}`;
 }
 
 function shiftDays(iso, days) {
   const date = new Date(`${iso}T00:00:00`);
   date.setDate(date.getDate() + days);
-  const pad = (n) => String(n).padStart(2, "0");
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+  return localDate(date);
 }
 
 // `d` then: t, tom, a weekday, +N, an ISO date, or - to clear. Returns
@@ -153,9 +161,7 @@ function parseDue(input, today) {
 // knows what day it is here, so say so once rather than being quietly wrong.
 function warnIfTheServerIsOnADifferentDay(serverToday) {
   if (warnIfTheServerIsOnADifferentDay.warned) return;
-  const here = new Date();
-  const pad = (n) => String(n).padStart(2, "0");
-  const local = `${here.getFullYear()}-${pad(here.getMonth() + 1)}-${pad(here.getDate())}`;
+  const local = localDate();
   if (serverToday && serverToday !== local) {
     warnIfTheServerIsOnADifferentDay.warned = true;
     toast(`This server thinks today is ${serverToday}; your machine says ${local}. Set TZ.`);
@@ -462,6 +468,19 @@ function renderUndo() {
     el("button", { onclick: undoLast }, "Undo (Ctrl+Z)"));
 }
 
+// This page gets left open. Without this, a tab opened yesterday still calls
+// yesterday "today": dates a day out read as due today, and the morning ritual
+// never fires, because as far as the page is concerned the morning never came.
+// Never while something is half-typed — a reload would take the words with it.
+function checkForDayRollover() {
+  if (state.today && localDate() === state.today) return false;
+  if (state.editing !== null || state.dueFor !== null) return false;
+  const capture = $("capture");
+  if (capture && capture.value) return false;
+  loadTasks({ autoTriage: state.view === "tasks" && !state.triaging });
+  return true;
+}
+
 async function undoLast() {
   const entry = state.undo.pop();
   if (!entry) { toast("Nothing to undo."); return; }
@@ -742,3 +761,5 @@ $("tabs").addEventListener("click", (event) => {
 });
 
 loadTasks({ autoTriage: true });
+
+setInterval(checkForDayRollover, DAY_CHECK_MS);

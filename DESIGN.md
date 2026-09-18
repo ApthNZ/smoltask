@@ -391,6 +391,20 @@ genuinely held no secrets. All three live in `.env`, never in a config file,
 never in a test fixture, never in a commit message explaining the setup. Add a
 gitleaks rule for Jira PATs.
 
+## 8b. Living with a tab left open
+
+This page gets left open — that is what a notebook is for. Two consequences it
+has to handle rather than ignore:
+
+- **The day changes under it.** A tab opened yesterday would keep calling
+  yesterday "today": a date one day out reading as due today, and a morning
+  ritual that never fires because as far as the page is concerned the morning
+  never came. The page checks once a minute and reloads when the local date has
+  moved. It never does so while a task is being edited, a date is being typed,
+  or there are words in the capture line — a reload would take them with it.
+- **A date in another year must say so.** `18 Sep` twelve months out reads
+  exactly like `18 Sep` next month. The year is shown when it is not this one.
+
 ## 9. Stack and deployment
 
 Deliberately identical to its sibling project, so the setup guide carries over:
