@@ -146,12 +146,47 @@ def test_the_legend_tells_the_truth_about_where_focus_is():
     assert "onfocus: () => { state.capturing = true; renderKeys(); }" in APP_JS
 
 
-def test_notifications_sit_under_the_header_not_at_the_foot():
-    """Eyes are at the top of the page; a bar at the bottom gets missed."""
-    assert '<div id="notify">' in INDEX
-    notify = APP_CSS[APP_CSS.index("#notify {"):][:200]
-    assert "position: fixed; top:" in notify
+def test_notifications_are_in_the_header_and_cover_nothing():
+    """At the top where the eyes are, but in the flow — a fixed bar sat over the
+    first line of the page, which is the capture line, the one thing that must
+    never be covered."""
+    header = INDEX[INDEX.index("<header>"):INDEX.index("</header>")]
+    assert '<div id="notify">' in header, "notifications are not in the header"
     assert "bottom: 18px" not in APP_CSS, "a notification is still pinned to the foot"
+    notify = APP_CSS[APP_CSS.index("#notify {"):][:160]
+    assert "position: fixed" not in notify, "notifications still float over the page"
+    assert "flex-wrap: wrap" in APP_CSS[APP_CSS.index("header {"):][:220], \
+        "a long notification would squash the header instead of wrapping"
+
+
+def test_the_counters_are_gone():
+    """"4 on the page" and "1 archived" restated what was already on screen."""
+    assert "on the page`" not in APP_JS
+    assert "archived`" not in APP_JS
+    assert 'id="count"' not in INDEX
+
+
+def test_both_ways_of_moving_are_advertised():
+    for context in ("list", "triage"):
+        keys = APP_JS[APP_JS.index(f"  {context}: ["):][:90]
+        assert "j k \u2191 \u2193" in keys or "j k ↑ ↓" in keys, f"{context}: {keys[:60]}"
+
+
+def test_quadrant_colour_comes_from_the_shared_palette():
+    """A little colour, on the two things that carry meaning. The hues are
+    smolplan's, picked there to stay clear of the green and red used for status
+    — so overdue stays the only red on the page."""
+    hues = re.findall(r"hue: (\d+|null)", APP_JS)
+    assert hues == ["30", "210", "265", "null", "null"], hues
+    assert ".section.hued .name { color: hsl(var(--h)" in APP_CSS
+    assert ".row.hued { border-left-color: hsl(var(--h)" in APP_CSS
+
+
+def test_a_row_without_a_quadrant_gets_no_colour():
+    """Never and Unsorted are not priorities and should not look like one."""
+    row = APP_JS[APP_JS.index("function taskRow(task,"):APP_JS.index("function select(id)")]
+    assert 'style: hue === null ? null : `--h: ${hue}`' in row
+    assert 'if (hue !== null) classes.push("hued");' in row
 
 
 def test_good_news_is_not_delivered_in_red():
@@ -173,7 +208,7 @@ def test_a_task_can_be_selected_without_opening_its_text():
     """Clicking the title edits it. There has to be another way to pick a row
     up, or the keyboard is unreachable by mouse."""
     assert "function select(id)" in APP_JS
-    row = APP_JS[APP_JS.index("function taskRow(task)"):APP_JS.index("function select(id)")]
+    row = APP_JS[APP_JS.index("function taskRow(task,"):APP_JS.index("function select(id)")]
     assert "onclick: () => select(task.id)" in row, "the row itself does not select"
     assert 'class: "bullet"' in row
     # The title's own handler must not also select-and-then-edit twice over.
@@ -185,17 +220,24 @@ def test_the_title_does_not_fill_the_row():
     click would land on the text and open the editor instead."""
     assert ".title {\n  flex: 0 1 auto;" in APP_CSS
     assert ".gap { flex: 1 1 auto;" in APP_CSS
-    row = APP_JS[APP_JS.index("function taskRow(task)"):APP_JS.index("function select(id)")]
+    row = APP_JS[APP_JS.index("function taskRow(task,"):APP_JS.index("function select(id)")]
     assert row.index('class: "title"') < row.index('class: "gap"')
 
 
 def test_the_tick_is_at_the_right_margin():
     """Bullet, then the words, then the tick — the way a line in a notebook
     reads."""
-    row = APP_JS[APP_JS.index("function taskRow(task)"):APP_JS.index("function select(id)")]
+    row = APP_JS[APP_JS.index("function taskRow(task,"):APP_JS.index("function select(id)")]
     assert row.index('class: "bullet"') < row.index('class: "title"') < row.index('class: "tick"')
     capture = APP_JS[APP_JS.index("function captureRow()"):][:600]
     assert capture.index('class: "bullet ghost"') < capture.index('class: "box"')
+
+
+def test_no_unicode_escapes_are_left_in_the_source():
+    """The file uses literal characters. A mix means a search-and-replace over
+    one spelling silently misses the other — which has now happened twice, once
+    leaving a row with two tick buttons."""
+    assert not re.findall(r"\\u[0-9a-fA-F]{4}", APP_JS)
 
 
 def test_the_page_never_reloads_itself():
@@ -217,7 +259,9 @@ def test_dark_theme_overrides_follow_the_rules_they_override():
     root_light = APP_CSS.index(":root {")
     root_dark = APP_CSS.index("@media (prefers-color-scheme: dark)")
     assert root_light < root_dark
-    for selector in (".triage", ".undo"):
+    # Every rule that hardcodes a colour instead of using a token needs a dark
+    # counterpart, and it has to come after.
+    for selector in (".triage", ".section.hued .name", ".row.hued"):
         light = APP_CSS.index(f"{selector} {{")
         dark = APP_CSS.index(f"  {selector} {{")
         assert light < dark, f"{selector}'s dark override comes before its light rules"

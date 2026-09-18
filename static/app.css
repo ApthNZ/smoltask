@@ -50,7 +50,7 @@ body {
 h1 { font-size: 15px; margin: 0; font-weight: 600; letter-spacing: .2px; }
 
 header {
-  display: flex; align-items: center; gap: 16px;
+  display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
   padding: 8px 14px; background: var(--panel);
   border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 20;
 }
@@ -61,7 +61,12 @@ nav button {
 }
 nav button:hover { background: var(--line-soft); color: var(--text); }
 nav button.on { background: var(--line-soft); border-color: var(--line); color: var(--text); }
-.count { margin-left: auto; color: var(--muted); font-variant-numeric: tabular-nums; }
+/* Notifications ride in the header. Fixed-position ones sat over the first line
+   of the page, which is the capture line — the one thing that must never be
+   covered. In the flow they push the page down instead, and the header is
+   sticky, so they stay in view without hiding anything. */
+#notify { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+#notify:empty { display: none; }
 
 main {
   max-width: var(--page);
@@ -77,7 +82,12 @@ main {
   display: flex; align-items: center; gap: 9px;
   height: var(--row);
   border-bottom: 1px solid var(--line-soft);
+  border-left: 2px solid transparent;
   padding: 0 4px;
+}
+.row.hued { border-left-color: hsl(var(--h) 55% 78%); }
+@media (prefers-color-scheme: dark) {
+  .row.hued { border-left-color: hsl(var(--h) 35% 40%); }
 }
 .row.on { background: var(--line-soft); border-radius: 4px; }
 .row.dim { opacity: .38; }
@@ -138,12 +148,19 @@ main {
 }
 .section:first-child { margin-top: 0; }
 .section .axis { font-weight: 400; color: var(--muted); }
+/* A little colour, on the two things that carry meaning: what the section is,
+   and a rule down the margin of the rows inside it. Hues are smolplan's. */
+.section.hued .name { color: hsl(var(--h) 60% 32%); }
+@media (prefers-color-scheme: dark) {
+  .section.hued .name { color: hsl(var(--h) 65% 74%); }
+}
 
 /* --- capture -------------------------------------------------------------- */
 
 .capture {
   display: flex; align-items: center; gap: 9px;
   height: var(--row); padding: 0 4px;
+  border-left: 2px solid transparent;
   border-bottom: 1px solid var(--line);
   margin-bottom: 14px;
 }
@@ -186,29 +203,18 @@ main {
 
 /* --- undo ----------------------------------------------------------------- */
 
-/* Notifications live under the header. The eyes are already at the top of the
-   page; a bar at the foot is a bar that gets missed. */
-#notify {
-  position: fixed; top: 47px; left: 50%; transform: translateX(-50%);
-  display: flex; flex-direction: column; align-items: center; gap: 6px;
-  z-index: 30; max-width: calc(100vw - 28px);
-}
-
 .undo {
-  display: flex; align-items: center; gap: 12px;
-  background: var(--panel); border: 1px solid var(--line); border-radius: 6px;
-  padding: 7px 13px; box-shadow: 0 2px 10px rgba(0, 0, 0, .13);
-  max-width: calc(100vw - 28px); z-index: 30;
-}
-@media (prefers-color-scheme: dark) {
-  .undo { box-shadow: 0 2px 10px rgba(0, 0, 0, .5); }
+  display: flex; align-items: center; gap: 10px;
+  background: var(--line-soft); border: 1px solid var(--line); border-radius: 6px;
+  padding: 3px 5px 3px 10px; font-size: 12px;
 }
 .undo .what { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .undo button {
-  flex: none; background: none; border: 1px solid var(--line); border-radius: 5px;
-  padding: 3px 9px; color: var(--accent); font: inherit; cursor: pointer;
+  flex: none; background: var(--panel); border: 1px solid var(--line);
+  border-radius: 5px; padding: 2px 8px; color: var(--accent);
+  font: inherit; font-size: 12px; cursor: pointer;
 }
-.undo button:hover { background: var(--line-soft); }
+.undo button:hover { border-color: var(--accent); }
 
 /* --- archive -------------------------------------------------------------- */
 
@@ -255,8 +261,7 @@ tr:hover .restore, tr:focus-within .restore { visibility: visible; }
 /* Tone, not one colour for everything: "page is triaged" is good news and was
    being delivered in the same red as a failure. */
 #toast {
-  border-radius: 6px; padding: 7px 13px; border: 1px solid;
-  max-width: 100%;
+  border-radius: 6px; padding: 3px 10px; border: 1px solid; font-size: 12px;
 }
 #toast.warn { background: var(--red-bg); color: var(--red); border-color: var(--red); }
 #toast.ok { background: var(--green-bg); color: var(--green); border-color: var(--green); }

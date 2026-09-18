@@ -15,14 +15,13 @@
     <button data-view="tasks" class="on">Tasks</button>
     <button data-view="archive">Archive</button>
   </nav>
-  <span id="count" class="count"></span>
+  <!-- Notifications live in the header: at the top where the eyes are, but in
+       the flow rather than floating over the first line of the page. -->
+  <div id="notify">
+    <div id="undo" hidden></div>
+    <div id="toast" hidden></div>
+  </div>
 </header>
-
-<!-- Notifications sit under the header, where the eyes already are. -->
-<div id="notify">
-  <div id="undo" hidden></div>
-  <div id="toast" hidden></div>
-</div>
 
 <main id="view"></main>
 

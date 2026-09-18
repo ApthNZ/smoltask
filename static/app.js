@@ -5,13 +5,16 @@
 // because the mouse is what made the tool this replaces dangerous — a list that
 // reflows under the cursor is how you complete the wrong row.
 
+// Hues are smolplan's, chosen there to stay clear of the green and red used for
+// status — so overdue stays the only red on the page. Warm at the top, cool
+// further down, nothing at all for the two sections that are not a priority.
 const QUADRANTS = [
-  { n: 1, name: "Now", axis: "urgent & important" },
-  { n: 2, name: "Next", axis: "important, not urgent" },
-  { n: 3, name: "Last", axis: "urgent, not important" },
-  { n: 4, name: "Never", axis: "neither" },
+  { n: 1, name: "Now", axis: "urgent & important", hue: 30 },
+  { n: 2, name: "Next", axis: "important, not urgent", hue: 210 },
+  { n: 3, name: "Last", axis: "urgent, not important", hue: 265 },
+  { n: 4, name: "Never", axis: "neither", hue: null },
 ];
-const UNSORTED = { n: null, name: "Unsorted", axis: "not yet triaged" };
+const UNSORTED = { n: null, name: "Unsorted", axis: "not yet triaged", hue: null };
 const SECTIONS = [...QUADRANTS, UNSORTED];
 const MAX_TITLE = 80;
 const COUNTER_FROM = 65;
@@ -27,10 +30,10 @@ const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
 const KEYMAPS = {
   capture: [["Enter", "add the task"], ["Esc", "step into the list"],
             ["Ctrl+Z", "undo a completion"]],
-  list: [["j k", "move"], ["space", "done"], ["1-4", "rank"], ["0", "unsort"],
+  list: [["j k ↑ ↓", "move"], ["space", "done"], ["1-4", "rank"], ["0", "unsort"],
          ["d", "due date"], ["e", "edit"], ["p", "triage"], ["a", "archive"],
          ["/", "new task"], ["Ctrl+Z", "undo"]],
-  triage: [["↑ ↓", "move"], ["1-4", "rank"], ["d", "due date"],
+  triage: [["j k ↑ ↓", "move"], ["1-4", "rank"], ["d", "due date"],
            ["space", "done"], ["n", "skip"], ["Esc", "leave triage"]],
   archive: [["t", "back to tasks"], ["click a heading", "sort"],
             ["Restore", "put it back on the page"]],
@@ -200,10 +203,6 @@ function renderKeys() {
 }
 
 function renderTasks() {
-  $("count").textContent = state.tasks.length
-    ? `${state.tasks.length} on the page`
-    : "";
-
   const blocks = [];
   if (state.triaging) blocks.push(triageBar());
   blocks.push(captureRow());
@@ -217,10 +216,11 @@ function renderTasks() {
     for (const section of SECTIONS) {
       const rows = state.tasks.filter((t) => t.quadrant === section.n);
       if (!rows.length) continue;
-      blocks.push(el("div", { class: "section" },
-        el("span", {}, section.name),
+      const hue = section.hue === null ? null : `--h: ${section.hue}`;
+      blocks.push(el("div", { class: `section ${hue ? "hued" : ""}`, style: hue },
+        el("span", { class: "name" }, section.name),
         section.axis ? el("span", { class: "axis" }, `— ${section.axis}`) : null));
-      for (const task of rows) blocks.push(taskRow(task));
+      for (const task of rows) blocks.push(taskRow(task, section.hue));
     }
   }
   setChildren($("view"), ...blocks);
@@ -263,11 +263,12 @@ function updateCounter() {
   counter.classList.toggle("full", used >= MAX_TITLE);
 }
 
-function taskRow(task) {
+function taskRow(task, hue = null) {
   const focused = state.focus === task.id;
   const current = state.triaging && queueTask();
   const isCurrent = current && current.id === task.id;
   const classes = ["row"];
+  if (hue !== null) classes.push("hued");
   if (isCurrent) classes.push("lit");
   else if (state.triaging) classes.push("dim");
   else if (focused) classes.push("on");
@@ -276,6 +277,7 @@ function taskRow(task) {
   // there is a way to pick a task up without putting the cursor in its text.
   return el("div", {
       class: classes.join(" "),
+      style: hue === null ? null : `--h: ${hue}`,
       "data-id": task.id,
       onclick: () => select(task.id),
     },
@@ -368,7 +370,6 @@ function triageBar() {
 
 function renderArchive() {
   const rows = state.archive.rows;
-  $("count").textContent = rows.length ? `${rows.length} archived` : "";
 
   const filter = (value, label) => el("button", {
     class: state.archive.outcome === value ? "on" : "",

@@ -82,13 +82,22 @@ accent colour when the row is the one the keyboard is pointing at.
 
 **Sections**, in this order:
 
-| Section | Eisenhower | Header reads |
-|---|---|---|
-| Now | do — urgent + important | `Now — urgent & important` |
-| Next | schedule — important, not urgent | `Next — important, not urgent` |
-| Last | delegate — urgent, not important | `Last — urgent, not important` |
-| Never | delete — neither | `Never — neither` |
-| Unsorted | — | `Unsorted` |
+| Section | Eisenhower | Header reads | Hue |
+|---|---|---|---|
+| Now | do — urgent + important | `Now — urgent & important` | 30, warm |
+| Next | schedule — important, not urgent | `Next — important, not urgent` | 210, blue |
+| Last | delegate — urgent, not important | `Last — urgent, not important` | 265, violet |
+| Never | delete — neither | `Never — neither` | none |
+| Unsorted | — | `Unsorted` | none |
+
+**A little colour, on the two things that carry meaning**: the section name, and
+a thin rule down the left margin of the rows inside it. Warm at the top, cool
+further down, and nothing at all for the two sections that are not a priority —
+`Never` and `Unsorted` stay grey, because colouring them would say they rank.
+
+The hues are smolplan's, and are the ones it picked to stay clear of the green
+and red it uses for status. That matters here: **overdue is the only red on the
+page**, and it stays that way.
 
 The axis is printed in muted text beside the name so the mapping is learnable
 without a legend. The names are ordinal rather than instructional, because with
@@ -102,6 +111,10 @@ exists to correct. New tasks wait at the bottom until triage places them.
 
 Within a section: due date ascending, undated last, then created ascending —
 oldest first, the order a notebook would have them in.
+
+**No counters.** There is no "4 on the page" or "1 archived" in the header. Both
+restated something already on screen and in view, and the space is better spent
+on notifications.
 
 **Empty state.** When the page is clear it says so in one line, with the day's
 count as the reward:
@@ -184,7 +197,7 @@ Triage — 4 to sort, 2 due soon, 1 stale                        Esc to leave
 complete it, `n` skip, `Esc` leave. Completing during triage matters — triage is
 where you notice a task stopped being a thing.
 
-`↑` `↓` (and `k` `j`) walk the queue. They are *navigation*: they mark nothing
+`↑` `↓` and `k` `j` walk the queue. They are *navigation*: they mark nothing
 and call nothing, so a task you passed over can be gone back to. `n` is the one
 that skips and records having looked.
 
@@ -206,7 +219,7 @@ Focus starts in the capture row, because capture is sacred.
 
 | Key | Does |
 |---|---|
-| `j` / `↓`, `k` / `↑` | Move focus |
+| `j` `k` / `↑` `↓` | Move focus |
 | `space` / `x` | Complete |
 | `Enter` / `e` | Edit inline (`Enter` saves, `Esc` cancels) |
 | `1`–`4` | Set quadrant |

@@ -71,6 +71,11 @@ after the meeting than during it. Four sections, Eisenhower underneath:
 | **Never** | neither | be honest |
 | **Unsorted** | | at the bottom, where it belongs |
 
+Each ranked section has a colour — warm at the top, cool further down — on its
+name and as a thin rule down the margin of its rows. `Never` and `Unsorted` get
+none, because colouring them would imply they rank. Overdue is the only red on
+the page.
+
 Untriaged tasks sort *last*, not first. A task that hasn't been triaged hasn't
 earned a position, and an inbox on top would rank the most recently captured
 thing as the most important thing — which is the reflex the whole ritual exists
