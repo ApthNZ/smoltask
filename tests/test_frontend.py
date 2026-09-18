@@ -105,6 +105,82 @@ def test_a_wrong_server_timezone_is_surfaced_not_swallowed():
     assert "Set TZ." in APP_JS
 
 
+def test_adding_a_task_keeps_the_capture_line():
+    """The re-render destroys the input the keystroke came from. Rendering only
+    restores focus when nothing is selected, so with a row selected the line
+    went dead after one Enter and the next task typed into nowhere."""
+    body = APP_JS[APP_JS.index("async function addTask("):][:600]
+    assert 'focusInput("#capture");' in body
+
+
+def test_the_key_legend_is_always_on_screen():
+    """Not a help modal — a strip at the foot of every screen."""
+    assert '<footer id="keys">' in INDEX
+    assert "#keys {" in APP_CSS and "position: fixed; bottom: 0;" in APP_CSS
+    for context in ("capture", "list", "triage", "archive"):
+        assert f"  {context}: [" in APP_JS, f"no legend for the {context} context"
+
+
+def test_the_legend_tells_the_truth_about_where_focus_is():
+    """A bare letter is text in the capture line and a shortcut in the list.
+    The legend switches on that rather than listing both and hoping."""
+    assert "function whichKeymap()" in APP_JS
+    assert "state.capturing ? \"capture\" : \"list\"" in APP_JS
+    assert "onfocus: () => { state.capturing = true; renderKeys(); }" in APP_JS
+
+
+def test_notifications_sit_under_the_header_not_at_the_foot():
+    """Eyes are at the top of the page; a bar at the bottom gets missed."""
+    assert '<div id="notify">' in INDEX
+    notify = APP_CSS[APP_CSS.index("#notify {"):][:200]
+    assert "position: fixed; top:" in notify
+    assert "bottom: 18px" not in APP_CSS, "a notification is still pinned to the foot"
+
+
+def test_good_news_is_not_delivered_in_red():
+    assert "#toast.ok { background: var(--green-bg)" in APP_CSS
+    assert "#toast.warn { background: var(--red-bg)" in APP_CSS
+    assert 'toast(`Page is triaged. ${seen} looked at.`, "ok")' in APP_JS
+    assert 'function toast(message, tone = "warn")' in APP_JS
+
+
+def test_arrows_walk_the_triage_queue():
+    """They did nothing at all in triage, which left the queue one-directional."""
+    body = APP_JS[APP_JS.index("function step(by)"):][:420]
+    assert "if (state.triaging)" in body
+    assert "state.qi = Math.min(Math.max(state.qi + by, 0), state.queue.length - 1)" in body
+    assert 'case "j": case "ArrowDown": event.preventDefault(); step(1); break;' in APP_JS
+
+
+def test_a_task_can_be_selected_without_opening_its_text():
+    """Clicking the title edits it. There has to be another way to pick a row
+    up, or the keyboard is unreachable by mouse."""
+    assert "function select(id)" in APP_JS
+    row = APP_JS[APP_JS.index("function taskRow(task)"):APP_JS.index("function select(id)")]
+    assert "onclick: () => select(task.id)" in row, "the row itself does not select"
+    assert 'class: "bullet"' in row
+    # The title's own handler must not also select-and-then-edit twice over.
+    assert "e.stopPropagation();" in row
+
+
+def test_the_title_does_not_fill_the_row():
+    """If it did, "click the row to select" would be unreachable — nearly every
+    click would land on the text and open the editor instead."""
+    assert ".title {\n  flex: 0 1 auto;" in APP_CSS
+    assert ".gap { flex: 1 1 auto;" in APP_CSS
+    row = APP_JS[APP_JS.index("function taskRow(task)"):APP_JS.index("function select(id)")]
+    assert row.index('class: "title"') < row.index('class: "gap"')
+
+
+def test_the_tick_is_at_the_right_margin():
+    """Bullet, then the words, then the tick — the way a line in a notebook
+    reads."""
+    row = APP_JS[APP_JS.index("function taskRow(task)"):APP_JS.index("function select(id)")]
+    assert row.index('class: "bullet"') < row.index('class: "title"') < row.index('class: "tick"')
+    capture = APP_JS[APP_JS.index("function captureRow()"):][:600]
+    assert capture.index('class: "bullet ghost"') < capture.index('class: "box"')
+
+
 def test_the_page_never_reloads_itself():
     """Firefox restores form-control state across location.reload() by position,
     so a reload that drops a row shifts every later row onto a restored value

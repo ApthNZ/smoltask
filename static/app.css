@@ -66,7 +66,8 @@ nav button.on { background: var(--line-soft); border-color: var(--line); color: 
 main {
   max-width: var(--page);
   margin: 0 auto;
-  padding: 18px 14px 80px;
+  /* Bottom padding clears the key legend, which is fixed to the foot. */
+  padding: 18px 14px 64px;
 }
 
 /* --- the page ------------------------------------------------------------ */
@@ -82,6 +83,19 @@ main {
 .row.dim { opacity: .38; }
 .row.lit { background: var(--hint); border-radius: 4px; }
 
+/* A pen dot in the margin. Muted until you hover, accent when the row is the
+   one the keyboard is pointing at. */
+.bullet {
+  flex: none; width: 13px; padding: 0; border: none; background: none;
+  color: var(--line); font-size: 15px; line-height: 1; cursor: pointer;
+  text-align: left; font-family: inherit;
+}
+.row:hover .bullet { color: var(--muted); }
+.row.on .bullet, .row.lit .bullet { color: var(--accent); }
+.bullet.ghost { color: var(--line); cursor: default; }
+.bullet:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; border-radius: 3px; }
+
+/* The tick sits at the right margin, where a pen would reach it. */
 .tick {
   flex: none; width: 15px; height: 15px; padding: 0;
   border: 1.5px solid var(--muted); border-radius: 3px;
@@ -91,11 +105,16 @@ main {
 .tick:hover { border-color: var(--green); color: var(--green); }
 .tick:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 
+/* The title hugs its own words rather than filling the row. What is left is
+   blank paper: clicking there selects the task, clicking the words edits them.
+   A full-width title would make "click the row to select" unreachable, since
+   almost every click would land on the text. */
 .title {
-  flex: 1 1 auto; min-width: 0;
+  flex: 0 1 auto; min-width: 0;
   overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
   cursor: text;
 }
+.gap { flex: 1 1 auto; min-width: 10px; align-self: stretch; }
 .title-edit {
   flex: 1 1 auto; min-width: 0;
   border: none; border-bottom: 1px solid var(--accent); background: none;
@@ -109,6 +128,7 @@ main {
   flex: none; color: var(--muted); font-size: 12px;
   font-variant-numeric: tabular-nums; min-width: 54px; text-align: right;
 }
+.row { cursor: default; }
 .due.over { color: var(--red); font-weight: 600; }
 
 /* Section headings are the only chrome on the page. */
@@ -131,6 +151,7 @@ main {
   flex: none; width: 15px; height: 15px;
   border: 1.5px dashed var(--line); border-radius: 3px;
 }
+.capture .bullet { cursor: default; }
 .capture input {
   flex: 1 1 auto; border: none; background: none; color: var(--text);
   font: inherit; padding: 0;
@@ -165,8 +186,15 @@ main {
 
 /* --- undo ----------------------------------------------------------------- */
 
+/* Notifications live under the header. The eyes are already at the top of the
+   page; a bar at the foot is a bar that gets missed. */
+#notify {
+  position: fixed; top: 47px; left: 50%; transform: translateX(-50%);
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  z-index: 30; max-width: calc(100vw - 28px);
+}
+
 .undo {
-  position: fixed; left: 50%; transform: translateX(-50%); bottom: 18px;
   display: flex; align-items: center; gap: 12px;
   background: var(--panel); border: 1px solid var(--line); border-radius: 6px;
   padding: 7px 13px; box-shadow: 0 2px 10px rgba(0, 0, 0, .13);
@@ -224,9 +252,31 @@ tr:hover .restore, tr:focus-within .restore { visibility: visible; }
 
 /* --- toast ---------------------------------------------------------------- */
 
+/* Tone, not one colour for everything: "page is triaged" is good news and was
+   being delivered in the same red as a failure. */
 #toast {
-  position: fixed; left: 50%; transform: translateX(-50%); bottom: 18px;
-  background: var(--red-bg); color: var(--red); border: 1px solid var(--red);
-  border-radius: 6px; padding: 7px 13px; z-index: 40;
+  border-radius: 6px; padding: 7px 13px; border: 1px solid;
+  max-width: 100%;
 }
+#toast.warn { background: var(--red-bg); color: var(--red); border-color: var(--red); }
+#toast.ok { background: var(--green-bg); color: var(--green); border-color: var(--green); }
+
+/* --- the key legend ------------------------------------------------------- */
+
+/* Always on screen, and it changes with where you are, because a bare letter is
+   text in the capture line and a shortcut in the list. */
+#keys {
+  position: fixed; bottom: 0; left: 0; right: 0; z-index: 20;
+  display: flex; flex-wrap: wrap; justify-content: center; gap: 3px 13px;
+  padding: 6px 14px; background: var(--panel); border-top: 1px solid var(--line);
+  font-size: 11px; color: var(--muted);
+}
+.chord { display: inline-flex; align-items: baseline; gap: 5px; white-space: nowrap; }
+.chord kbd {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 10px; background: var(--line-soft); color: var(--text);
+  border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px;
+  padding: 1px 4px;
+}
+.chord i { font-style: normal; }
 [hidden] { display: none !important; }

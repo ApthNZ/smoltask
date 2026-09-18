@@ -21,6 +21,21 @@ const WEEKDAYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
                 "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
+// The legend at the foot of the page. Keyed by where you are, because a bare
+// letter is text while the capture line has focus and a shortcut while the list
+// does, and a legend that does not say so is worse than none.
+const KEYMAPS = {
+  capture: [["Enter", "add the task"], ["Esc", "step into the list"],
+            ["Ctrl+Z", "undo a completion"]],
+  list: [["j k", "move"], ["space", "done"], ["1-4", "rank"], ["0", "unsort"],
+         ["d", "due date"], ["e", "edit"], ["p", "triage"], ["a", "archive"],
+         ["/", "capture line"], ["Ctrl+Z", "undo"]],
+  triage: [["↑ ↓", "move"], ["1-4", "rank"], ["d", "due date"],
+           ["space", "done"], ["n", "skip"], ["Esc", "leave triage"]],
+  archive: [["t", "back to tasks"], ["click a heading", "sort"],
+            ["Restore", "put it back on the page"]],
+};
+
 const state = {
   view: "tasks",
   today: "",
@@ -31,6 +46,7 @@ const state = {
   editing: null,
   dueFor: null,
   triaging: false,
+  capturing: true,
   queue: [],
   qi: 0,
   undo: [],
@@ -76,9 +92,10 @@ async function api(path, options) {
   return response.json();
 }
 
-function toast(message) {
+function toast(message, tone = "warn") {
   const node = $("toast");
   node.textContent = message;
+  node.className = tone;
   node.hidden = false;
   clearTimeout(toast.timer);
   toast.timer = setTimeout(() => { node.hidden = true; }, 3500);
@@ -165,6 +182,18 @@ function render() {
   if (state.view === "tasks") renderTasks();
   else renderArchive();
   renderUndo();
+  renderKeys();
+}
+
+function whichKeymap() {
+  if (state.view === "archive") return "archive";
+  if (state.triaging) return "triage";
+  return state.capturing ? "capture" : "list";
+}
+
+function renderKeys() {
+  setChildren($("keys"), ...KEYMAPS[whichKeymap()].map(([key, what]) =>
+    el("span", { class: "chord" }, el("kbd", {}, key), el("i", {}, what))));
 }
 
 function renderTasks() {
@@ -211,11 +240,15 @@ function captureRow() {
     autocomplete: "off",
     oninput: updateCounter,
     onkeydown: onCaptureKey,
+    onfocus: () => { state.capturing = true; renderKeys(); },
+    onblur: () => { state.capturing = false; renderKeys(); },
   });
   return el("div", { class: "capture" },
-    el("div", { class: "box" }),
+    el("span", { class: "bullet ghost" }, "•"),
     input,
-    el("span", { id: "counter", class: "counter" }));
+    el("span", { class: "gap" }),
+    el("span", { id: "counter", class: "counter" }),
+    el("div", { class: "box" }));
 }
 
 function updateCounter() {
@@ -236,13 +269,19 @@ function taskRow(task) {
   else if (state.triaging) classes.push("dim");
   else if (focused) classes.push("on");
 
-  return el("div", { class: classes.join(" "), "data-id": task.id },
+  // Clicking anywhere that is not the title or the tick selects the row, so
+  // there is a way to pick a task up without putting the cursor in its text.
+  return el("div", {
+      class: classes.join(" "),
+      "data-id": task.id,
+      onclick: () => select(task.id),
+    },
     el("button", {
-      class: "tick",
-      title: "Complete (space)",
-      "aria-label": `Complete ${task.title}`,
-      onclick: () => completeTask(task.id),
-    }, "✓"),
+      class: "bullet",
+      title: "Select",
+      "aria-label": `Select ${task.title}`,
+      onclick: (e) => { e.stopPropagation(); select(task.id); },
+    }, "•"),
     state.editing === task.id
       ? el("input", {
           class: "title-edit",
@@ -256,8 +295,15 @@ function taskRow(task) {
       : el("span", {
           class: "title",
           title: "Click to edit",
-          onclick: () => { state.focus = task.id; state.editing = task.id; render(); },
+          onclick: (e) => {
+            e.stopPropagation();
+            state.focus = task.id;
+            state.editing = task.id;
+            render();
+          },
         }, task.title),
+    // Blank paper. Clicking it selects the row; the row's own handler does it.
+    el("span", { class: "gap" }),
     task.jira_key ? el("span", { class: "key" }, task.jira_key) : null,
     state.dueFor === task.id
       ? el("input", {
@@ -268,7 +314,20 @@ function taskRow(task) {
           onkeydown: (e) => onDueKey(e, task),
           onblur: () => { state.dueFor = null; render(); },
         })
-      : dueLabel(task));
+      : dueLabel(task),
+    el("button", {
+      class: "tick",
+      title: "Complete (space)",
+      "aria-label": `Complete ${task.title}`,
+      onclick: (e) => { e.stopPropagation(); completeTask(task.id); },
+    }, "✓"));
+}
+
+function select(id) {
+  if (state.focus === id && state.editing === null) return;
+  state.focus = id;
+  state.editing = null;
+  render();
 }
 
 function dueLabel(task) {
@@ -369,7 +428,7 @@ function archiveRow(task) {
       class: "restore",
       onclick: async () => {
         await api(`/api/tasks/${task.id}/restore`, { method: "POST" });
-        toast(`Restored "${task.title}"`);
+        toast(`Restored "${task.title}"`, "ok");
         loadArchive();
       },
     }, "Restore")));
@@ -406,6 +465,11 @@ async function addTask(title) {
   if (!trimmed) return;
   await api("/api/tasks", { method: "POST", body: JSON.stringify({ title: trimmed }) });
   await loadTasks();
+  // The re-render destroys the input the keystroke came from, and focus falls
+  // to the body. Rendering only restores it when nothing is selected, so with a
+  // row selected the line went dead after one Enter and the next task typed
+  // into nowhere. Pressing Enter in the capture line always keeps the line.
+  focusInput("#capture");
 }
 
 async function completeTask(id) {
@@ -472,7 +536,7 @@ async function advance() {
   if (state.qi >= state.queue.length) {
     const seen = state.queue.length;
     render();
-    toast(`Page is triaged. ${seen} looked at.`);
+    toast(`Page is triaged. ${seen} looked at.`, "ok");
     setTimeout(stopTriage, 1200);
     return;
   }
@@ -494,6 +558,20 @@ function visibleIds() {
     for (const task of state.tasks) if (task.quadrant === section.n) ids.push(task.id);
   }
   return ids;
+}
+
+// In triage this walks the queue; on the page it walks the rows. Moving through
+// the queue marks nothing and calls nothing — it is navigation, so a task passed
+// over can be gone back to. `n` is the one that skips and records it.
+function step(by) {
+  if (state.triaging) {
+    if (!state.queue.length) return;
+    state.qi = Math.min(Math.max(state.qi + by, 0), state.queue.length - 1);
+    state.dueFor = null;
+    render();
+    return;
+  }
+  moveFocus(by);
 }
 
 function moveFocus(step) {
@@ -583,8 +661,8 @@ document.addEventListener("keydown", (event) => {
   const id = target(event);
 
   switch (event.key) {
-    case "j": case "ArrowDown": event.preventDefault(); if (!state.triaging) moveFocus(1); break;
-    case "k": case "ArrowUp": event.preventDefault(); if (!state.triaging) moveFocus(-1); break;
+    case "j": case "ArrowDown": event.preventDefault(); step(1); break;
+    case "k": case "ArrowUp": event.preventDefault(); step(-1); break;
     case " ": case "x":
       event.preventDefault();
       if (id !== null) completeTask(id);

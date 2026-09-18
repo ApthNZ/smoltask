@@ -64,13 +64,21 @@ line it isn't one thought.
 **A task row:**
 
 ```
-[ ] Email bob about the capacity numbers                    PROJ-412   Fri
+•  Email bob about the capacity numbers              PROJ-412   Fri   [ ]
 ```
 
-Tick box left. Title. Jira key and due date right-aligned and muted; the date
-goes `--red` when overdue and nothing else moves — no banner, no count, no
-nagging. Quadrant is shown by which section the row is in, not by a badge, so
+A bullet in the margin, the title, then blank paper, then the Jira key and due
+date, then the tick box **at the right margin** — where a pen would reach it.
+The date goes `--red` when overdue and nothing else moves: no banner, no count,
+no nagging. Quadrant is shown by which section the row is in, not by a badge, so
 the row itself stays clean.
+
+**Three targets, three meanings.** Clicking the words edits them; clicking the
+bullet or the blank paper after the title selects the row without opening its
+text; clicking the tick completes it. This is why the title is sized to its own
+words rather than filling the row — a full-width title would leave nowhere to
+click that *isn't* the editor. The bullet is muted until you hover and takes the
+accent colour when the row is the one the keyboard is pointing at.
 
 **Sections**, in this order:
 
@@ -173,8 +181,12 @@ Triage — 4 to sort, 2 due soon, 1 stale                        Esc to leave
    urgent, or you're avoiding it. Either way it needs re-ranking or ticking.
 
 **Keys in triage:** `1`–`4` assign and advance, `d` set a due date, `space`
-complete it, `n` or `Enter` skip, `Esc` leave. Completing during triage matters
-— triage is where you notice a task stopped being a thing.
+complete it, `n` skip, `Esc` leave. Completing during triage matters — triage is
+where you notice a task stopped being a thing.
+
+`↑` `↓` (and `k` `j`) walk the queue. They are *navigation*: they mark nothing
+and call nothing, so a task you passed over can be gone back to. `n` is the one
+that skips and records having looked.
 
 When the queue empties the bar reads `Page is triaged.` and the mode exits.
 
@@ -214,6 +226,13 @@ Focus starts in the capture row, because capture is sacred.
 
 Only `Ctrl+Z` is global, and in the capture row it is the browser's text undo
 while the input has content, task undo when it's empty.
+
+**The legend is on screen at all times** — a strip along the foot of the page,
+not a help modal you have to know to open. It changes with context: the capture
+keys while the capture line has focus, the list keys while the list does, the
+triage keys in triage, the archive's in the archive. A legend that listed every
+key regardless of context would be lying half the time, given the next
+paragraph.
 
 **Every other shortcut is a plain letter, so it only acts while focus is in the
 list.** This is not a compromise, it is the point: capture is sacred, and a
@@ -366,3 +385,6 @@ whether the order is right.
 
 - Empty-state copy, and whether the day's tick count is a nice reward or a
   gimmick that gets old by Thursday.
+- Whether the unselected bullets are too faint to read as "click me". They are
+  `--line` until hover on purpose, so the page stays quiet, but the affordance
+  is only discoverable by trying it.
