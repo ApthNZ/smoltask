@@ -29,7 +29,7 @@ const KEYMAPS = {
             ["Ctrl+Z", "undo a completion"]],
   list: [["j k", "move"], ["space", "done"], ["1-4", "rank"], ["0", "unsort"],
          ["d", "due date"], ["e", "edit"], ["p", "triage"], ["a", "archive"],
-         ["/", "capture line"], ["Ctrl+Z", "undo"]],
+         ["/", "new task"], ["Ctrl+Z", "undo"]],
   triage: [["↑ ↓", "move"], ["1-4", "rank"], ["d", "due date"],
            ["space", "done"], ["n", "skip"], ["Esc", "leave triage"]],
   archive: [["t", "back to tasks"], ["click a heading", "sort"],
@@ -127,8 +127,11 @@ function shiftDays(iso, days) {
 function parseDue(input, today) {
   const text = (input || "").trim().toLowerCase();
   if (text === "" || text === "-") return null;
-  if (text === "t" || text === "today") return today;
-  if (text === "tom" || text === "tomorrow") return shiftDays(today, 1);
+  // Any prefix of the word, rather than one blessed abbreviation — "tod" is as
+  // natural a thing to type as "t". Today is tested first, so the shared prefix
+  // "t"/"to" resolves to today rather than being ambiguous.
+  if ("today".startsWith(text)) return today;
+  if ("tomorrow".startsWith(text)) return shiftDays(today, 1);
   if (/^\+\d+$/.test(text)) return shiftDays(today, parseInt(text.slice(1), 10));
   if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text;
   const weekday = WEEKDAYS.findIndex((d) => d.startsWith(text.slice(0, 3)));
@@ -309,7 +312,7 @@ function taskRow(task) {
       ? el("input", {
           class: "duebox",
           "data-due": task.id,
-          placeholder: "t / tom / fri / +3 / 2026-09-30 / -",
+          placeholder: "tod / tom / fri / +3 / 2026-09-30 / -",
           autocomplete: "off",
           onkeydown: (e) => onDueKey(e, task),
           onblur: () => { state.dueFor = null; render(); },
@@ -626,7 +629,7 @@ function onDueKey(event, task) {
   if (event.key === "Enter") {
     event.preventDefault();
     const due = parseDue(event.target.value, state.today);
-    if (due === undefined) { toast("Try t, tom, fri, +3, 2026-09-30, or - to clear."); return; }
+    if (due === undefined) { toast("Try tod, tom, fri, +3, 2026-09-30, or - to clear."); return; }
     state.dueFor = null;
     if (state.triaging) {
       api(`/api/tasks/${task.id}`, { method: "PATCH", body: JSON.stringify({ due }) }).then(advance);

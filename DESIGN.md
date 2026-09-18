@@ -211,12 +211,12 @@ Focus starts in the capture row, because capture is sacred.
 | `Enter` / `e` | Edit inline (`Enter` saves, `Esc` cancels) |
 | `1`–`4` | Set quadrant |
 | `0` | Back to Unsorted |
-| `d` | Due date, then `t`oday / `m`onday / `+3` / a typed date / `-` to clear |
+| `d` | Due date, then `tod` / `tom` / `fri` / `+3` / a typed date / `-` to clear |
 | `J` | Promote to Jira |
 | `u` | Undo the last completion (stack) |
 | `p` | Enter or leave triage |
 | `a` / `t` | Archive / Tasks |
-| `/` | Back to the capture row |
+| `/` | Back to the capture row to write another |
 
 **Anywhere**
 

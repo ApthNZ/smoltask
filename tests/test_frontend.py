@@ -113,6 +113,23 @@ def test_adding_a_task_keeps_the_capture_line():
     assert 'focusInput("#capture");' in body
 
 
+def test_dates_accept_any_prefix_of_the_word():
+    """"tod" is as natural a thing to type as "t", and one blessed abbreviation
+    per word is a rule nobody can remember."""
+    assert '"today".startsWith(text)' in APP_JS
+    assert '"tomorrow".startsWith(text)' in APP_JS
+    # Today is tested first, so the shared "t"/"to" prefix is not ambiguous.
+    assert APP_JS.index('"today".startsWith(text)') < APP_JS.index('"tomorrow".startsWith(text)')
+    assert 'placeholder: "tod / tom / fri' in APP_JS
+
+
+def test_the_legend_names_actions_not_parts_of_the_ui():
+    """"capture line" names a thing on the page; the legend has room only to
+    say what the key does."""
+    assert '"capture line"' not in APP_JS
+    assert '["/", "new task"]' in APP_JS
+
+
 def test_the_key_legend_is_always_on_screen():
     """Not a help modal — a strip at the foot of every screen."""
     assert '<footer id="keys">' in INDEX

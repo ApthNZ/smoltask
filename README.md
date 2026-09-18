@@ -89,7 +89,8 @@ and move on. `p` runs it again whenever you like. It asks about three things:
 You can tick a task during triage. Triage is where you notice a task stopped
 being a thing.
 
-**Due dates, quietly.** `d` on a task, then `t`, `tom`, `fri`, `+3`, or a date.
+**Due dates, quietly.** `d` on a task, then `tod`, `tom`, `fri`, `+3`, or a
+date — any prefix of the word will do, so `t`, `to` and `today` are all today.
 Overdue turns the date red and nothing else happens. There are no reminders, no
 notifications and no recurrence, and there will not be.
 
@@ -107,10 +108,10 @@ in an empty capture line steps down into the list.
 | `space` / `x` | complete |
 | `Enter` / `e` | edit in place |
 | `1`–`4` | rank · `0` unsorts |
-| `d` | due date — `t`, `tom`, `fri`, `+3`, a date, `-` to clear |
+| `d` | due date — `tod`, `tom`, `fri`, `+3`, a date, `-` to clear |
 | `p` | run triage |
 | `a` / `t` | Archive / Tasks |
-| `/` | back to the capture line |
+| `/` | back to the capture line to write another |
 | `Ctrl+Z` / `u` | undo the last completion, repeatedly |
 
 The keyboard is the good path, not the power-user path. A list that reflows
