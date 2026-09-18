@@ -69,8 +69,19 @@ line it isn't one thought.
 
 A bullet in the margin, the title, then blank paper, then the Jira key and due
 date, then the tick box **at the right margin** — where a pen would reach it.
-The date goes `--red` when overdue and nothing else moves: no banner, no count,
-no nagging. Quadrant is shown by which section the row is in, not by a badge, so
+The date goes `--red` when it needs a human and nothing else moves: no banner,
+no count, no nagging.
+
+**Red on a date means the date is a problem**, and there are two ways for that
+to be true:
+
+- it has **passed**, or
+- the task is ranked **Never**. A date on a Never task is a date you promised
+  someone and disowned in the same breath, and that is worth being told. The
+  tooltip says which of the two it is, or both.
+
+That is the whole of red on this page. Nothing else claims it, and a test
+enforces that. Quadrant is shown by which section the row is in, not by a badge, so
 the row itself stays clean.
 
 **Three targets, three meanings.** Clicking the words edits them; clicking the
@@ -96,8 +107,8 @@ further down, and nothing at all for the two sections that are not a priority �
 `Never` and `Unsorted` stay grey, because colouring them would say they rank.
 
 The hues are smolplan's, and are the ones it picked to stay clear of the green
-and red it uses for status. That matters here: **overdue is the only red on the
-page**, and it stays that way.
+and red it uses for status. That matters here: **a red date is the only red on
+the page**, and it stays that way.
 
 The axis is printed in muted text beside the name so the mapping is learnable
 without a legend. The names are ordinal rather than instructional, because with
@@ -398,6 +409,10 @@ whether the order is right.
 
 - Empty-state copy, and whether the day's tick count is a nice reward or a
   gimmick that gets old by Thursday.
+- Whether a date ranked `Never` should also be pulled into the morning ritual,
+  rather than only turning red where it sits. The whole page is visible at once,
+  so it will be seen — but triage is where contradictions are meant to surface,
+  and this is one.
 - Whether the unselected bullets are too faint to read as "click me". They are
   `--line` until hover on purpose, so the page stays quiet, but the affordance
   is only discoverable by trying it.

@@ -73,8 +73,8 @@ after the meeting than during it. Four sections, Eisenhower underneath:
 
 Each ranked section has a colour — warm at the top, cool further down — on its
 name and as a thin rule down the margin of its rows. `Never` and `Unsorted` get
-none, because colouring them would imply they rank. Overdue is the only red on
-the page.
+none, because colouring them would imply they rank. A red date is the only red
+on the page.
 
 Untriaged tasks sort *last*, not first. A task that hasn't been triaged hasn't
 earned a position, and an inbox on top would rank the most recently captured
@@ -96,8 +96,12 @@ being a thing.
 
 **Due dates, quietly.** `d` on a task, then `tod`, `tom`, `fri`, `+3`, or a
 date — any prefix of the word will do, so `t`, `to` and `today` are all today.
-Overdue turns the date red and nothing else happens. There are no reminders, no
-notifications and no recurrence, and there will not be.
+A date turns red when it needs a human and nothing else happens. There are no
+reminders, no notifications and no recurrence, and there will not be.
+
+A date needs a human for one of two reasons: it has passed, or the task is
+ranked **Never** — which means you promised someone a date and told yourself
+you will never do it. That one is worth being told about.
 
 ## Keys
 

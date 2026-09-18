@@ -15,6 +15,7 @@ const QUADRANTS = [
   { n: 4, name: "Never", axis: "neither", hue: null },
 ];
 const UNSORTED = { n: null, name: "Unsorted", axis: "not yet triaged", hue: null };
+const NEVER = 4;
 const SECTIONS = [...QUADRANTS, UNSORTED];
 const MAX_TITLE = 80;
 const COUNTER_FROM = 65;
@@ -338,9 +339,14 @@ function select(id) {
 function dueLabel(task) {
   if (!task.due) return el("span", { class: "due" }, "");
   const overdue = dayNumber(task.due) < dayNumber(state.today);
+  // A date on a task ranked Never is a date you have promised someone and told
+  // yourself you will not keep. Same red as overdue, because it is the same
+  // message: this date needs a human. Nothing else moves.
+  const disowned = task.quadrant === NEVER;
+  const why = [overdue ? "overdue" : null, disowned ? "ranked Never" : null].filter(Boolean);
   return el("span", {
-    class: `due ${overdue ? "over" : ""}`,
-    title: `Due ${task.due}`,
+    class: `due ${overdue || disowned ? "over" : ""}`,
+    title: why.length ? `Due ${task.due} — ${why.join(", and ")}` : `Due ${task.due}`,
   }, formatDue(task.due, state.today));
 }
 

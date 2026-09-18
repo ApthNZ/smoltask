@@ -240,6 +240,25 @@ def test_no_unicode_escapes_are_left_in_the_source():
     assert not re.findall(r"\\u[0-9a-fA-F]{4}", APP_JS)
 
 
+def test_a_date_on_a_never_task_is_flagged():
+    """A date on a task ranked Never is a date promised to someone and disowned
+    in the same breath. It takes the same red as overdue, because it is the same
+    message: this date needs a human."""
+    body = APP_JS[APP_JS.index("function dueLabel(task)"):][:700]
+    assert "const disowned = task.quadrant === NEVER;" in body
+    assert "overdue || disowned" in body
+    assert '"ranked Never"' in body, "the tooltip does not say why it is red"
+    assert "const NEVER = 4;" in APP_JS
+
+
+def test_red_still_means_only_one_thing():
+    """The rule is that red on the page means a date needs attention. It must
+    not leak onto anything else."""
+    reds = [line.strip() for line in APP_CSS.splitlines()
+            if "var(--red)" in line and "toast" not in line and "counter" not in line]
+    assert all(".due.over" in r or "#toast" in r for r in reds), reds
+
+
 def test_the_page_never_reloads_itself():
     """Firefox restores form-control state across location.reload() by position,
     so a reload that drops a row shifts every later row onto a restored value
