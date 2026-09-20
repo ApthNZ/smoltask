@@ -16,7 +16,7 @@
 > someone. Treat it as a worked example, not as software you would trust your
 > week to.
 
-**A notebook that ticks.** A task takes two seconds to write and one key to be
+**Notebook-style task management.** A task takes two seconds to write and one key to be
 rid of. That is the whole feature list.
 
 A paper to-do list works right up until the page fills with a mix of done and
