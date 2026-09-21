@@ -149,7 +149,8 @@ uvicorn app:app --host 127.0.0.1 --port 8108
 ```
 
 Then open <http://127.0.0.1:8108>. The database is `smoltask.db` beside the
-code; set `SMOLTASK_DB` to put it somewhere else.
+code; set `SMOLTASK_DB` to put it somewhere else. On a Windows laptop, see
+[docs/windows.md](docs/windows.md).
 
 With Docker:
 
