@@ -154,6 +154,9 @@ main {
 @media (prefers-color-scheme: dark) {
   .section.hued .name { color: hsl(var(--h) 65% 74%); }
 }
+/* The key that ranks a task here. Muted and unboxed: the header is not a
+   legend, it just carries the number so the mapping is learnable in passing. */
+.section .rank { color: var(--muted); font-weight: 400; font-variant-numeric: tabular-nums; }
 
 /* --- capture -------------------------------------------------------------- */
 
@@ -192,6 +195,23 @@ main {
 }
 .triage b { font-weight: 600; }
 .triage .why { color: var(--muted); }
+
+/* The quadrant grid, under the bar and only in triage. Three lines: the two
+   axes on the edges, the four keys in the cells. Cells borrow `.chord` from the
+   foot legend, so a digit here looks like the key it is without a second set of
+   rules describing what a key looks like. */
+.matrix {
+  display: grid; grid-template-columns: auto auto auto;
+  width: max-content; gap: 4px 22px; align-items: baseline;
+  padding: 8px 11px; margin-bottom: 14px;
+  border: 1px solid var(--line); border-radius: 6px;
+  font-size: 12px;
+}
+.matrix .head { color: var(--muted); font-size: 11px; }
+.matrix .cell.hued i { color: hsl(var(--h) 60% 32%); font-weight: 600; }
+@media (prefers-color-scheme: dark) {
+  .matrix .cell.hued i { color: hsl(var(--h) 65% 74%); }
+}
 
 /* Wide enough for the whole hint. At 190px the tail was cut off, which is the
    same as not documenting it — the way to clear a date was invisible. */

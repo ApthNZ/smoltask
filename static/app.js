@@ -211,7 +211,7 @@ function renderKeys() {
 
 function renderTasks() {
   const blocks = [];
-  if (state.triaging) blocks.push(triageBar());
+  if (state.triaging) blocks.push(triageBar(), quadrantGrid());
   blocks.push(captureRow());
 
   if (!state.tasks.length) {
@@ -225,6 +225,10 @@ function renderTasks() {
       if (!rows.length) continue;
       const hue = section.hue === null ? null : `--h: ${section.hue}`;
       blocks.push(el("div", { class: `section ${hue ? "hued" : ""}`, style: hue },
+        // The key that puts a task here. The legend says `1-4 rank` without
+        // saying which is which, and an unused section is not rendered at all,
+        // so this is the only place the mapping is on the page all day.
+        section.n ? el("span", { class: "rank" }, section.n) : null,
         el("span", { class: "name" }, section.name),
         section.axis ? el("span", { class: "axis" }, `— ${section.axis}`) : null));
       for (const task of rows) blocks.push(taskRow(task, section.hue));
@@ -379,6 +383,30 @@ function triageBar() {
     el("b", {}, task ? "Triage" : "Page is triaged."),
     task ? el("span", {}, `${state.qi + 1} of ${state.queue.length} — ${parts.join(", ")}`) : null,
     task ? el("span", { class: "why" }, `· ${why}`) : null);
+}
+
+// The digits are the matrix. Read across then down, 1-4 land on the classic
+// Eisenhower quadrants in order, so the 2x2 says *why* the numbering is what it
+// is rather than just listing it again. Only in triage, which is the one place
+// the digits are under your fingers in a run.
+//
+// The axes sit on the edges rather than in the cells: repeating "urgent &
+// important" inside the top-left cell says the same thing twice, and the height
+// is not free — the highlighted task has to stay above the fold.
+function quadrantGrid() {
+  const head = (text) => el("span", { class: "head" }, text);
+  // Never has no hue on purpose, here as in the sections: colouring it would
+  // say it ranks.
+  const cell = (quadrant) => el("span", {
+    class: `cell chord ${quadrant.hue === null ? "" : "hued"}`,
+    style: quadrant.hue === null ? null : `--h: ${quadrant.hue}`,
+  }, el("kbd", {}, quadrant.n), el("i", {}, quadrant.name));
+
+  const [now, next, last, never] = QUADRANTS;
+  return el("div", { class: "matrix" },
+    head(""), head("urgent"), head("not urgent"),
+    head("important"), cell(now), cell(next),
+    head("not important"), cell(last), cell(never));
 }
 
 // --- archive -----------------------------------------------------------------

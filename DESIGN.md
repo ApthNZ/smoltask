@@ -110,10 +110,14 @@ The hues are smolplan's, and are the ones it picked to stay clear of the green
 and red it uses for status. That matters here: **a red date is the only red on
 the page**, and it stays that way.
 
-The axis is printed in muted text beside the name so the mapping is learnable
-without a legend. The names are ordinal rather than instructional, because with
-no assignees "delegate" is meaningless and "delete" is a lie — nothing is ever
+The axis is printed in muted text beside the name, and the ranking key in front
+of it — `1 Now — urgent & important` — so the mapping is learnable without a
+legend. The names are ordinal rather than instructional, because with no
+assignees "delegate" is meaningless and "delete" is a lie — nothing is ever
 deleted, it just never rises to the top.
+
+`Unsorted` carries no number. `0` is what unsorts a task, and numbering the
+section `5` would put it on the scale the other four are on.
 
 **Unsorted sits at the bottom.** A task that has not been triaged has not earned
 a position, and putting the inbox on top would rank the most recently captured
@@ -222,6 +226,28 @@ real answer and ends it.
 
 **The bar carries no key hints.** The legend at the foot of the page already
 shows the triage keys; repeating them made the bar wrap.
+
+**Under the bar, the matrix.** A 2×2 of the four keys, shown in triage and
+nowhere else:
+
+```
+                 urgent        not urgent
+  important      1 Now         2 Next
+  not important  3 Last        4 Never
+```
+
+Read across then down, `1`–`4` land on the Eisenhower quadrants in their classic
+order. That is the whole argument for the shape: a row of four would be a
+legend, restating what the section headers already say, while the grid shows
+*why* the numbering is what it is. It earns its place because the headers can't
+do this job during triage — an unused section is not rendered at all, so the
+quadrant you never reach for is the one with nothing on screen to learn from.
+
+The axes are on the edges, not in the cells. Repeating "urgent & important"
+inside the top-left cell says the same thing twice, and the height is not free:
+the highlighted task has to stay above the fold. The cells reuse the foot
+legend's key styling, so a digit here looks like the key it is. `Never` is
+uncoloured, as its section is — colouring it would say it ranks.
 
 **Keys in triage:** `1`–`4` assign and advance, `d` set a due date, `space`
 complete it, `n` skip, `Esc` leave. They are on the legend at the foot, as

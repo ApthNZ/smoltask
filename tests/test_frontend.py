@@ -60,6 +60,65 @@ def test_the_triage_queue_is_a_snapshot():
     assert "state.triage.queue[state.qi]" not in APP_JS
 
 
+def test_the_quadrant_grid_is_shown_only_in_triage():
+    """It answers "which digit is which", which is a question you only have in
+    the run of 1-4 presses triage is. On the page all day it would be a legend
+    restating four section headers that are already on screen."""
+    assert "blocks.push(triageBar(), quadrantGrid());" in APP_JS
+    assert APP_JS.count("quadrantGrid()") == 2, "the grid is rendered in one place"
+
+
+def test_the_quadrant_grid_reads_from_the_one_list_of_quadrants():
+    """Four names and hues typed out a second time is four chances for the grid
+    to disagree with the sections it is explaining."""
+    body = APP_JS[APP_JS.index("function quadrantGrid("):]
+    body = body[:body.index("\n}\n")]
+    assert "const [now, next, last, never] = QUADRANTS;" in body
+    assert "quadrant.name" in body and "quadrant.n" in body and "quadrant.hue" in body
+    for name in ("Now", "Next", "Last", "Never"):
+        assert f'"{name}"' not in body, f"{name} is spelled out in the grid"
+
+
+def test_the_grid_is_laid_out_as_the_matrix_not_a_list():
+    """Read across then down, 1-4 land on the classic quadrants. That ordering
+    is the whole argument for a 2x2 — a row of four would be a legend."""
+    body = APP_JS[APP_JS.index("function quadrantGrid("):]
+    body = body[:body.index("\n}\n")]
+    order = re.findall(r"cell\((\w+)\)", body)
+    assert order == ["now", "next", "last", "never"]
+    heads = re.findall(r'head\("([^"]*)"\)', body)
+    assert heads == ["", "urgent", "not urgent", "important", "not important"]
+    # Sized to its own four cells rather than stretched across the page: a
+    # diagram to glance at, not a second bar.
+    assert "grid-template-columns: auto auto auto;" in APP_CSS
+    assert "width: max-content;" in APP_CSS
+
+
+def test_never_is_uncoloured_in_the_grid_as_it_is_in_the_sections():
+    """Colouring the fourth quadrant would say it ranks."""
+    body = APP_JS[APP_JS.index("function quadrantGrid("):]
+    body = body[:body.index("\n}\n")]
+    assert 'quadrant.hue === null ? "" : "hued"' in body
+    assert "quadrant.hue === null ? null : `--h: ${quadrant.hue}`" in body
+
+
+def test_the_grid_borrows_the_legend_key_styling():
+    """A digit in the grid is the key you press. One set of rules says what a
+    key looks like, and the grid uses it rather than growing a second."""
+    body = APP_JS[APP_JS.index("function quadrantGrid("):]
+    body = body[:body.index("\n}\n")]
+    assert "chord" in body and 'el("kbd", {}, quadrant.n)' in body
+    assert APP_CSS.count(".chord kbd {") == 1
+
+
+def test_the_section_headers_carry_their_rank_key():
+    """An unused section is not rendered, so without this the mapping for a
+    quadrant you have not filled is nowhere on the page."""
+    assert 'section.n ? el("span", { class: "rank" }, section.n) : null,' in APP_JS
+    # Unsorted has no key: `0` unsorts, and numbering it 5 would rank it.
+    assert ".section .rank {" in APP_CSS
+
+
 def test_undo_is_a_stack_not_a_single_step():
     """The laggy-machine-completed-five-rows case is the reason this app exists.
     Undo has to handle it."""
@@ -321,7 +380,8 @@ def test_dark_theme_overrides_follow_the_rules_they_override():
     assert root_light < root_dark
     # Every rule that hardcodes a colour instead of using a token needs a dark
     # counterpart, and it has to come after.
-    for selector in (".triage", ".section.hued .name", ".row.hued"):
+    for selector in (".triage", ".section.hued .name", ".row.hued",
+                     ".matrix .cell.hued i"):
         light = APP_CSS.index(f"{selector} {{")
         dark = APP_CSS.index(f"  {selector} {{")
         assert light < dark, f"{selector}'s dark override comes before its light rules"
