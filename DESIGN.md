@@ -112,7 +112,15 @@ the page**, and it stays that way.
 
 The axis is printed in muted text beside the name, and the ranking key in front
 of it — `1 Now — urgent & important` — so the mapping is learnable without a
-legend. The names are ordinal rather than instructional, because with no
+legend.
+
+**The names and definitions are the user's, not the code's.** They are what the
+table above ships with. A Settings tab edits the four names, the line beside
+each, and the four edges of the triage grid; they are stored in a `setting`
+row and read with a fallback to the defaults, so a damaged row costs a label,
+never the page. What stays fixed is everything behaviour hangs off: the key,
+the order, the hue, `1` going stale and `4` being the one a date contradicts.
+Renaming is cosmetic by construction, which is why it needs no code change. The names are ordinal rather than instructional, because with no
 assignees "delegate" is meaningless and "delete" is a lie — nothing is ever
 deleted, it just never rises to the top.
 
@@ -189,6 +197,18 @@ and charges you the triage.
 any time you press `p`. Re-runnable on demand, always skippable, never blocks
 capture — typing in the capture row just works and triage picks up after.
 
+"Picks up after" is literal. The queue is a snapshot (a refreshed queue steps
+over every second task), so a task written mid-triage is appended to it — without
+that it could be neither walked to nor clicked, and the lowest the arrows reached
+was the last task that existed when triage began. `/` goes to the capture line
+without leaving triage; `Esc` or `↓` from there goes back to the lit task.
+
+**A click picks.** Clicking a row in triage makes it the lit task: one already
+in the queue is jumped to, as the arrows would; one that is not is slotted in at
+the current place, so the task you were on comes straight after it. Ticking a
+row that is not the lit one takes it out of the queue and leaves the pointer
+where it was — it used to advance, stepping off the lit task unseen.
+
 **It is a mode on the Tasks page, not a modal.** The list stays visible and
 slightly dimmed; one task is highlighted at a time. A thin bar at the top:
 
@@ -250,7 +270,7 @@ legend's key styling, so a digit here looks like the key it is. `Never` is
 uncoloured, as its section is — colouring it would say it ranks.
 
 **Keys in triage:** `1`–`4` assign and advance, `d` set a due date, `space`
-complete it, `n` skip, `Esc` leave. They are on the legend at the foot, as
+complete it, `n` skip, `/` write a new task, `Esc` leave. They are on the legend at the foot, as
 everywhere else. Completing during triage matters — triage is
 where you notice a task stopped being a thing.
 
@@ -268,7 +288,7 @@ Focus starts in the capture row, because capture is sacred.
 
 | Key | Does |
 |---|---|
-| `Enter` | Commit, clear, stay |
+| `Enter` | Commit, clear, stay. A last word of `~fri` (anything `d` takes) files it with that date |
 | `↓` | Move focus into the list |
 | `Esc` | Clear the input; if already empty, move into the list |
 
@@ -285,7 +305,7 @@ Focus starts in the capture row, because capture is sacred.
 | `J` | Promote to Jira |
 | `u` | Undo the last completion (stack) |
 | `p` | Enter or leave triage |
-| `a` / `t` | Archive / Tasks |
+| `a` / `t` / `s` | Archive / Tasks / Settings |
 | `/` | Back to the capture row to write another |
 
 **Anywhere**
@@ -353,7 +373,9 @@ Notes on why it's this shape:
 ```
 GET    /api/tasks                    on the page, sorted for display
 GET    /api/archive?sort=&dir=&q=&outcome=
-POST   /api/tasks                    {title}
+POST   /api/tasks                    {title, due?}
+GET    /api/settings                 {labels, defaults}
+PUT    /api/settings                 {labels}  — names, definitions, grid axes
 PATCH  /api/tasks/:id                {title?, quadrant?, due?}
 POST   /api/tasks/:id/complete
 POST   /api/tasks/:id/restore        serves both undo and archive restore

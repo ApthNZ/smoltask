@@ -59,20 +59,25 @@ def missing():
 # --- validation --------------------------------------------------------------
 
 
-def clean_title(raw: str) -> str:
-    """A title is one line of a notebook.
+def clean_line(raw: str) -> str:
+    """One line of text, as a ruled line can carry it.
 
-    Control characters are stripped rather than rejected — a title pasted from
-    somewhere else should not be an error, it should just lose the formatting
-    that a single ruled line cannot carry anyway. Length is then a hard 1..80,
-    which the schema also enforces.
+    Control characters are stripped rather than rejected — something pasted from
+    somewhere else should not be an error, it should just lose the formatting a
+    single line cannot carry anyway. Whitespace runs collapse to one space.
     """
     text = "".join(
         " " if ch in "\t\n\r" else ch
         for ch in (raw or "")
         if ch in "\t\n\r" or unicodedata.category(ch)[0] != "C"
     )
-    text = re.sub(r"\s+", " ", text).strip()
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def clean_title(raw: str) -> str:
+    """A title is one line of a notebook: `clean_line`, then a hard 1..80,
+    which the schema also enforces."""
+    text = clean_line(raw)
     if not text:
         raise ValueError("A task needs a title.")
     if len(text) > db.MAX_TITLE:
@@ -100,6 +105,39 @@ def validate_quadrant(value: int | None) -> int | None:
     if not isinstance(value, int) or isinstance(value, bool) or value not in (1, 2, 3, 4):
         raise ValueError("A quadrant is 1, 2, 3 or 4, or nothing at all.")
     return value
+
+
+def clean_labels(raw: "LabelsIn") -> dict:
+    """The user's names for the quadrants. A name is required — a section
+    heading with nothing in it is a gap in the page — and two quadrants cannot
+    share one, or `1` and `3` would file into sections that look the same.
+    Definitions and axes may be empty; the page just leaves them out."""
+    def bounded(text: str, limit: int, what: str) -> str:
+        text = clean_line(text)
+        if len(text) > limit:
+            raise ValueError(f"{what} is at most {limit} characters.")
+        return text
+
+    quadrants = []
+    for n, q in enumerate(raw.quadrants, start=1):
+        name = bounded(q.name, db.MAX_NAME, f"Priority {n}'s name")
+        if not name:
+            raise ValueError(f"Priority {n} needs a name.")
+        quadrants.append({
+            "name": name,
+            "definition": bounded(q.definition, db.MAX_DEFINITION, f"Priority {n}'s definition"),
+        })
+    names = [q["name"].casefold() for q in quadrants]
+    if len(set(names)) != len(names):
+        raise ValueError("Two priorities cannot share a name.")
+
+    return {
+        "quadrants": quadrants,
+        "matrix": {
+            key: [bounded(t, db.MAX_AXIS, "An axis label") for t in getattr(raw.matrix, key)]
+            for key in ("columns", "rows")
+        },
+    }
 
 
 def guarded(fn, *args):
@@ -134,6 +172,7 @@ def read_tasks(conn=Depends(get_conn)):
             "all": db.triage_queue(conn, day, include_triaged=True)["queue"],
         },
         "done_today": db.count_finished_on(conn, day),
+        "labels": db.get_labels(conn),
     }
 
 
@@ -154,6 +193,7 @@ def read_archive(sort: str = "finished", dir: str = "desc", q: str = "",
 
 class TaskIn(BaseModel):
     title: str = Field(max_length=4000)
+    due: str | None = None
 
 
 class TaskPatch(BaseModel):
@@ -165,7 +205,8 @@ class TaskPatch(BaseModel):
 @app.post("/api/tasks", status_code=201)
 def create_task(payload: TaskIn, conn=Depends(get_conn)):
     title = guarded(clean_title, payload.title)
-    return db.create_task(conn, title)
+    due = guarded(validate_due, payload.due)
+    return db.create_task(conn, title, due)
 
 
 @app.patch("/api/tasks/{task_id}")
@@ -227,6 +268,41 @@ def mark_triaged(task_id: int, conn=Depends(get_conn)):
     if task is None:
         missing()
     return db.mark_triaged(conn, task_id, db.today())
+
+
+# --- settings ----------------------------------------------------------------
+
+
+class QuadrantLabelIn(BaseModel):
+    name: str = Field(max_length=4000)
+    definition: str = Field(default="", max_length=4000)
+
+
+class MatrixLabelsIn(BaseModel):
+    columns: list[str] = Field(min_length=2, max_length=2)
+    rows: list[str] = Field(min_length=2, max_length=2)
+
+
+class LabelsIn(BaseModel):
+    quadrants: list[QuadrantLabelIn] = Field(min_length=4, max_length=4)
+    matrix: MatrixLabelsIn
+
+
+class SettingsIn(BaseModel):
+    labels: LabelsIn
+
+
+@app.get("/api/settings")
+def read_settings(conn=Depends(get_conn)):
+    """The defaults travel with the settings so "Restore defaults" can fill the
+    form without saving — the Save button stays the only thing that writes."""
+    return {"labels": db.get_labels(conn), "defaults": db.DEFAULT_LABELS}
+
+
+@app.put("/api/settings")
+def write_settings(payload: SettingsIn, conn=Depends(get_conn)):
+    labels = guarded(clean_labels, payload.labels)
+    return {"labels": db.set_labels(conn, labels), "defaults": db.DEFAULT_LABELS}
 
 
 # --- static ------------------------------------------------------------------

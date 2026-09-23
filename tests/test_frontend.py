@@ -20,9 +20,9 @@ def test_index_loads_everything_it_needs():
         assert asset in INDEX, f"index.html does not load {asset}"
 
 
-def test_index_has_both_views_and_nothing_else():
+def test_index_has_its_three_views_and_nothing_else():
     views = re.findall(r'data-view="(\w+)"', INDEX)
-    assert views == ["tasks", "archive"], "two screens, deliberately"
+    assert views == ["tasks", "archive", "settings"], "three screens, deliberately"
 
 
 def test_replacechildren_is_never_called_directly():
@@ -40,15 +40,63 @@ def test_the_title_limit_agrees_with_the_server():
 
 
 def test_the_capture_input_enforces_the_limit_in_the_browser_too():
-    assert re.search(r"id: \"capture\",\s*\n\s*maxlength: MAX_TITLE", APP_JS)
+    """The line has room for a `~fri` on the end and no more; the title itself
+    is held to the eighty before anything is sent, and the words stay put."""
+    assert re.search(r"id: \"capture\",\s*\n\s*maxlength: MAX_TITLE \+ DATE_ROOM,", APP_JS)
+    assert len(" ~2026-09-30") == int(re.search(r"const DATE_ROOM = (\d+);", APP_JS).group(1))
+    body = APP_JS[APP_JS.index("function onCaptureKey("):]
+    body = body[:body.index("\n}\n")]
+    check = body.index("splitDue(value, state.today).title.length > MAX_TITLE")
+    assert check < body.index('input.value = "";'), "the line is cleared before it is checked"
 
 
-def test_the_sections_are_named_and_ordered():
-    names = re.findall(r'name: "(\w+)", axis:', APP_JS)
-    assert names == ["Now", "Next", "Last", "Never", "Unsorted"]
+def test_the_sections_are_ordered_with_unsorted_last():
     # Unsorted is declared outside QUADRANTS and appended last, so an untriaged
     # task sorts to the bottom rather than ranking itself most important.
-    assert "[...QUADRANTS, UNSORTED]" in APP_JS
+    assert "const SECTIONS = [...QUADRANTS, UNSORTED];" in APP_JS
+    assert "for (const section of [...quadrants(), UNSORTED])" in APP_JS
+    assert re.findall(r"\{ n: (\d), hue:", APP_JS) == ["1", "2", "3", "4"]
+
+
+def test_the_quadrant_names_come_from_settings_not_the_source():
+    """They are cosmetic, and the user wanted to change them without a code
+    change. The defaults live in one place — the server — so the page cannot
+    disagree with the settings screen about what "the default" is."""
+    for name in ("Now", "Next", "Last", "Never"):
+        assert f'"{name}"' not in APP_JS, f"{name} is spelled out in app.js"
+    assert "...state.labels.quadrants[i]" in APP_JS
+    assert "state.labels = data.labels;" in APP_JS
+    assert [q["name"] for q in db.DEFAULT_LABELS["quadrants"]] == ["Now", "Next", "Last", "Never"]
+
+
+def test_the_settings_limits_agree_with_the_server():
+    for name in ("MAX_NAME", "MAX_DEFINITION", "MAX_AXIS"):
+        match = re.search(rf"const {name} = (\d+);", APP_JS)
+        assert match and int(match.group(1)) == getattr(db, name), name
+
+
+def test_settings_are_saved_only_by_save():
+    """Leaving the tab is not a decision to keep what was typed there, and
+    Restore defaults only fills the form — Save is the one thing that writes."""
+    assert APP_JS.count('method: "PUT"') == 1
+    body = APP_JS[APP_JS.index("function renderSettings("):]
+    body = body[:body.index("\n}\n")]
+    assert "state.settings.draft = clone(state.settings.defaults); render();" in body
+    assert "onclick: saveSettings" in body
+
+
+def test_typing_in_settings_does_not_rerender():
+    """A re-render per keystroke would take the cursor out of the field."""
+    body = APP_JS[APP_JS.index("function settingsChanged("):]
+    body = body[:body.index("\n}\n")]
+    assert "render()" not in body
+    assert "oninput: (e) => { set(e.target.value); settingsChanged(); }" in APP_JS
+
+
+def test_the_day_rollover_leaves_settings_alone():
+    body = APP_JS[APP_JS.index("function checkForDayRollover()"):]
+    body = body[:body.index("\n}\n")]
+    assert 'if (state.view === "settings") return false;' in body
 
 
 def test_the_triage_queue_is_a_snapshot():
@@ -73,10 +121,10 @@ def test_the_quadrant_grid_reads_from_the_one_list_of_quadrants():
     to disagree with the sections it is explaining."""
     body = APP_JS[APP_JS.index("function quadrantGrid("):]
     body = body[:body.index("\n}\n")]
-    assert "const [now, next, last, never] = QUADRANTS;" in body
-    assert "quadrant.name" in body and "quadrant.n" in body and "quadrant.hue" in body
-    for name in ("Now", "Next", "Last", "Never"):
-        assert f'"{name}"' not in body, f"{name} is spelled out in the grid"
+    assert "const [now, next, last, never] = quadrants();" in body
+    cell = APP_JS[APP_JS.index("function matrixCell("):]
+    cell = cell[:cell.index("\n}\n")]
+    assert "quadrant.name" in cell and "quadrant.n" in cell and "quadrant.hue" in cell
 
 
 def test_the_grid_is_laid_out_as_the_matrix_not_a_list():
@@ -84,19 +132,32 @@ def test_the_grid_is_laid_out_as_the_matrix_not_a_list():
     is the whole argument for a 2x2 — a row of four would be a legend."""
     body = APP_JS[APP_JS.index("function quadrantGrid("):]
     body = body[:body.index("\n}\n")]
-    order = re.findall(r"cell\((\w+)\)", body)
-    assert order == ["now", "next", "last", "never"]
-    heads = re.findall(r'head\("([^"]*)"\)', body)
-    assert heads == ["", "urgent", "not urgent", "important", "not important"]
+    order = re.findall(r"matrixCell\((\w+)\)", body)
+    # Once without axes, once with.
+    assert order == ["now", "next", "last", "never"] * 2
+    heads = re.findall(r'head\(([^)]*)\)', body)
+    assert heads == ['""', "columns[0]", "columns[1]", "rows[0]", "rows[1]"]
+    assert [*db.DEFAULT_LABELS["matrix"]["columns"], *db.DEFAULT_LABELS["matrix"]["rows"]] \
+        == ["urgent", "not urgent", "important", "not important"]
     # Sized to its own four cells rather than stretched across the page: a
     # diagram to glance at, not a second bar.
     assert "grid-template-columns: auto auto auto;" in APP_CSS
     assert "width: max-content;" in APP_CSS
 
 
+def test_the_grid_without_axes_is_two_by_two():
+    """Someone who has dropped the Eisenhower framing can empty all four axes,
+    and the grid stops claiming it."""
+    body = APP_JS[APP_JS.index("function quadrantGrid("):]
+    body = body[:body.index("\n}\n")]
+    assert "if (![...columns, ...rows].some(Boolean))" in body
+    assert '"matrix bare"' in body
+    assert ".matrix.bare { grid-template-columns: auto auto; }" in APP_CSS
+
+
 def test_never_is_uncoloured_in_the_grid_as_it_is_in_the_sections():
     """Colouring the fourth quadrant would say it ranks."""
-    body = APP_JS[APP_JS.index("function quadrantGrid("):]
+    body = APP_JS[APP_JS.index("function matrixCell("):]
     body = body[:body.index("\n}\n")]
     assert 'quadrant.hue === null ? "" : "hued"' in body
     assert "quadrant.hue === null ? null : `--h: ${quadrant.hue}`" in body
@@ -105,7 +166,7 @@ def test_never_is_uncoloured_in_the_grid_as_it_is_in_the_sections():
 def test_the_grid_borrows_the_legend_key_styling():
     """A digit in the grid is the key you press. One set of rules says what a
     key looks like, and the grid uses it rather than growing a second."""
-    body = APP_JS[APP_JS.index("function quadrantGrid("):]
+    body = APP_JS[APP_JS.index("function matrixCell("):]
     body = body[:body.index("\n}\n")]
     assert "chord" in body and 'el("kbd", {}, quadrant.n)' in body
     assert APP_CSS.count(".chord kbd {") == 1
@@ -168,8 +229,9 @@ def test_adding_a_task_keeps_the_capture_line():
     """The re-render destroys the input the keystroke came from. Rendering only
     restores focus when nothing is selected, so with a row selected the line
     went dead after one Enter and the next task typed into nowhere."""
-    body = APP_JS[APP_JS.index("async function addTask("):][:600]
-    assert 'focusInput("#capture");' in body
+    body = APP_JS[APP_JS.index("async function addTask("):]
+    body = body[:body.index("\n}\n")]
+    assert body.rstrip().endswith('focusInput("#capture");')
 
 
 def test_the_date_box_says_how_to_clear_a_date():
@@ -203,7 +265,7 @@ def test_the_key_legend_is_always_on_screen():
     """Not a help modal — a strip at the foot of every screen."""
     assert '<footer id="keys">' in INDEX
     assert "#keys {" in APP_CSS and "position: fixed; bottom: 0;" in APP_CSS
-    for context in ("capture", "list", "triage", "archive"):
+    for context in ("capture", "list", "triage", "triageCapture", "archive", "settings"):
         assert f"  {context}: [" in APP_JS, f"no legend for the {context} context"
 
 
@@ -221,7 +283,7 @@ def test_notifications_are_in_the_header_and_cover_nothing():
     never be covered."""
     header = INDEX[INDEX.index("<header>"):INDEX.index("</header>")]
     assert '<div id="notify">' in header, "notifications are not in the header"
-    assert "bottom: 18px" not in APP_CSS, "a notification is still pinned to the foot"
+    assert not re.search(r"(?<!-)bottom: 18px", APP_CSS), "a notification is still pinned to the foot"
     notify = APP_CSS[APP_CSS.index("#notify {"):][:160]
     assert "position: fixed" not in notify, "notifications still float over the page"
     assert "flex-wrap: wrap" in APP_CSS[APP_CSS.index("header {"):][:220], \
@@ -298,7 +360,8 @@ def test_the_tick_is_at_the_right_margin():
     reads."""
     row = APP_JS[APP_JS.index("function taskRow(task,"):APP_JS.index("function select(id)")]
     assert row.index('class: "bullet"') < row.index('class: "title"') < row.index('class: "tick"')
-    capture = APP_JS[APP_JS.index("function captureRow()"):][:600]
+    capture = APP_JS[APP_JS.index("function captureRow()"):]
+    capture = capture[:capture.index("\n}\n")]
     assert capture.index('class: "bullet ghost"') < capture.index('class: "box"')
 
 
@@ -316,14 +379,17 @@ def test_a_date_on_a_never_task_is_flagged():
     body = APP_JS[APP_JS.index("function dueLabel(task)"):][:700]
     assert "const disowned = task.quadrant === NEVER;" in body
     assert "overdue || disowned" in body
-    assert '"ranked Never"' in body, "the tooltip does not say why it is red"
+    assert "`ranked ${nameOf(NEVER)}`" in body, "the tooltip does not say why it is red"
     assert "const NEVER = 4;" in APP_JS
 
 
 def test_triage_explains_a_disowned_date():
     """The queue carries the reason; the bar has to be able to say it."""
-    assert 'disowned: "dated, but ranked Never"' in APP_JS
-    assert 'dated Never`' in APP_JS, "the bar does not count them"
+    assert "disowned: `dated, but ranked ${nameOf(NEVER)}`" in APP_JS
+    assert "dated ${nameOf(NEVER)}`" in APP_JS, "the bar does not count them"
+    # And whatever the user has called the first quadrant goes stale.
+    assert "stale: `in ${nameOf(STALE)} for over a week`" in APP_JS
+    assert "const STALE = 1;" in APP_JS and db.NEVER == 4
 
 
 def test_red_still_means_only_one_thing():
@@ -394,3 +460,93 @@ def test_the_notebook_row_height_is_a_token():
 
 def test_titles_never_wrap():
     assert "white-space: nowrap" in APP_CSS
+
+
+# --- triage and capture --------------------------------------------------------
+
+
+def test_a_task_written_mid_triage_joins_the_queue():
+    """The queue is a snapshot, so a task captured during triage could be
+    neither walked to with the arrows nor clicked on — the lowest you could get
+    was the last task that existed when triage started."""
+    body = APP_JS[APP_JS.index("async function addTask("):]
+    body = body[:body.index("\n}\n")]
+    assert 'if (state.triaging) state.queue.push({ ...task, reason: "unsorted" });' in body
+
+
+def test_clicking_a_row_in_triage_picks_it():
+    """A click in triage did nothing at all: it set the list's focus, which
+    triage does not look at."""
+    assert "if (state.triaging) { pickForTriage(id); return; }" in APP_JS
+    body = APP_JS[APP_JS.index("function pickForTriage("):]
+    body = body[:body.index("\n}\n")]
+    assert "state.qi = at;" in body
+    assert 'state.queue.splice(state.qi, 0, { ...task, reason: "picked" });' in body
+    assert 'picked: "picked by hand"' in APP_JS
+
+
+def test_writing_a_task_does_not_end_triage():
+    """`/` used to leave triage, so a manual run could not take a new task while
+    the automatic one — reached by clicking the line — could. Triage never
+    blocks capture."""
+    case = APP_JS[APP_JS.index('    case "/":'):APP_JS.index('    case "a":')]
+    assert "stopTriage" not in case
+    assert 'focusInput("#capture");' in case
+    assert '["/", "new task"], ["Esc", "leave triage"]' in APP_JS
+
+
+def test_leaving_the_capture_line_in_triage_goes_back_to_the_lit_task():
+    body = APP_JS[APP_JS.index("function onCaptureKey("):]
+    body = body[:body.index("\n}\n")]
+    assert "moveFocus" not in body
+    assert body.count("leaveCapture()") == 2
+    assert "if (state.triaging) render();" in APP_JS
+
+
+def test_triage_does_not_close_on_a_task_written_as_it_finished():
+    body = APP_JS[APP_JS.index("async function advance("):]
+    body = body[:body.index("\n}\n")]
+    assert "state.triaging && state.qi >= state.queue.length) stopTriage();" in body
+
+
+def test_the_legend_in_a_triage_capture_says_letters_are_text():
+    assert 'if (state.triaging) return state.capturing ? "triageCapture" : "triage";' in APP_JS
+
+
+# --- dates on the capture line --------------------------------------------------
+
+
+def test_a_date_can_ride_on_the_end_of_a_new_task():
+    """`call Bob ~fri`. Only the last word, only with a `~`, and only when the
+    date box would take it — so URLs, paths and "~5 mins" stay text."""
+    assert r"const INLINE_DUE = /\s~+(\S+)$/;" in APP_JS
+    body = APP_JS[APP_JS.index("function splitDue("):]
+    body = body[:body.index("\n}\n")]
+    assert "parseDue(match[1], today)" in body, "a second date grammar has appeared"
+    # null is parseDue's "clear the date" — not a date to file.
+    assert 'if (typeof due !== "string") return { title: text, due: null };' in body
+
+
+def test_the_capture_line_shows_the_date_it_will_file():
+    assert 'el("span", { id: "capdue", class: "due" })' in APP_JS
+    body = APP_JS[APP_JS.index("function updateCounter("):]
+    body = body[:body.index("\n}\n")]
+    assert "formatDue(due, state.today)" in body
+    # The eighty counts the title, not the date riding on it.
+    assert "const used = title.length;" in body
+
+
+def test_a_task_that_fails_to_save_keeps_its_words():
+    body = APP_JS[APP_JS.index("async function addTask("):]
+    body = body[:body.index("\n}\n")]
+    assert "box.value = line;" in body
+
+
+def test_ticking_another_row_in_triage_does_not_skip_the_lit_one():
+    """Completing always advanced, so a mouse tick on any other row stepped off
+    the task being triaged without anything having happened to it."""
+    body = APP_JS[APP_JS.index("async function completeTask("):]
+    body = body[:body.index("\n}\n")]
+    assert "if (current && current.id === id) { advance(); return; }" in body
+    assert "state.queue.splice(at, 1);" in body
+    assert "if (at < state.qi) state.qi -= 1;" in body

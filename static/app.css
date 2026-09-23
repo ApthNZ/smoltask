@@ -213,6 +213,10 @@ main {
   .matrix .cell.hued i { color: hsl(var(--h) 65% 74%); }
 }
 
+/* With every axis label emptied there are no edges, and the grid is the four
+   keys two by two. */
+.matrix.bare { grid-template-columns: auto auto; }
+
 /* Wide enough for the whole hint. At 190px the tail was cut off, which is the
    same as not documenting it — the way to clear a date was invisible. */
 .duebox {
@@ -221,6 +225,44 @@ main {
   color: var(--text); font: inherit; font-size: 12px; padding: 1px 5px;
 }
 .duebox:focus { outline: none; }
+
+/* --- settings ----------------------------------------------------------- */
+
+.settings h2 { font-size: 13px; font-weight: 600; margin: 0 0 4px; }
+.settings h2 + .note { margin-top: 0; }
+.settings .note { color: var(--muted); margin: 0 0 10px; max-width: 60ch; }
+.settings .labels { margin-bottom: 22px; }
+.settings input {
+  border: 1px solid var(--line); border-radius: 5px;
+  background: var(--panel); color: var(--text); font: inherit; padding: 3px 7px;
+  min-width: 0;
+}
+.settings input:focus { outline: 1px solid var(--accent); border-color: var(--accent); }
+.settings input::placeholder { color: var(--muted); opacity: .75; }
+/* One row per priority: its key, its name, what it means. The margin rule is
+   the one its rows carry on the page, so the row reads as that section. */
+.label-row {
+  display: flex; align-items: center; gap: 9px;
+  padding: 4px 4px 4px 8px; border-left: 2px solid transparent;
+}
+.label-row.hued { border-left-color: hsl(var(--h) 55% 78%); }
+@media (prefers-color-scheme: dark) {
+  .label-row.hued { border-left-color: hsl(var(--h) 35% 40%); }
+}
+.label-row .name { flex: 0 0 11em; font-weight: 600; }
+.label-row .definition { flex: 1 1 auto; }
+/* The grid, editable at its edges. */
+.matrix.editable { margin-bottom: 18px; align-items: center; }
+.matrix.editable input.head { width: 10em; font-size: 11px; color: var(--muted); }
+.settings .actions { display: flex; align-items: center; gap: 8px; }
+.settings .actions button {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 5px;
+  padding: 3px 12px; color: var(--text); font: inherit; cursor: pointer;
+}
+.settings .actions button:hover { border-color: var(--accent); }
+.settings .actions button.primary { color: var(--accent); font-weight: 600; }
+.settings .actions button:disabled { color: var(--muted); font-weight: 400; cursor: default; border-color: var(--line); }
+.unsaved { color: var(--muted); font-size: 12px; }
 
 /* --- undo ----------------------------------------------------------------- */
 

@@ -118,3 +118,22 @@ def test_the_invariants_survive_a_soak(client, conn):
     assert all(t["finished_at"] is None for t in body["tasks"])
     assert all(t["reason"] in ("unsorted", "disowned", "due", "stale")
                for t in body["triage"]["queue"])
+
+
+@pytest.mark.parametrize("due", HOSTILE_DUES)
+def test_no_date_crashes_the_creator(client, due):
+    assert client.post("/api/tasks", json={"title": "subject", "due": due}).status_code < 500
+
+
+@pytest.mark.parametrize("body", [
+    {}, [], "string", 42, {"labels": None}, {"labels": []}, {"labels": "x"},
+    {"labels": {"quadrants": None, "matrix": None}},
+    {"labels": {"quadrants": [{}] * 4, "matrix": {"columns": [], "rows": []}}},
+    {"labels": {"quadrants": [{"name": None}] * 4,
+                "matrix": {"columns": [1, 2], "rows": [None, None]}}},
+    {"labels": {"quadrants": [{"name": "\x00"}] * 4,
+                "matrix": {"columns": ["a", "b"], "rows": ["c", "d"]}}},
+])
+def test_no_settings_body_crashes_the_saver(client, body):
+    assert client.put("/api/settings", json=body).status_code < 500
+    assert client.get("/api/tasks").status_code == 200

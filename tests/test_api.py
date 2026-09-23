@@ -95,10 +95,27 @@ def test_unknown_task_is_404(client):
 
 def test_the_page_payload_carries_what_the_page_needs(client):
     body = client.get("/api/tasks").json()
-    assert set(body) == {"today", "tasks", "triage", "done_today"}
+    assert set(body) == {"today", "tasks", "triage", "done_today", "labels"}
     assert set(body["triage"]) == {"queue", "counts", "auto", "all"}
 
 
 def test_index_and_static_are_served(client):
     assert "smoltask" in client.get("/").text
     assert client.get("/static/app.js").status_code == 200
+
+
+def test_a_task_can_be_created_with_a_date(client):
+    """`call Bob ~fri` on the capture line: one request, and still unsorted —
+    being born with a date has not ranked anything, so triage still asks."""
+    response = client.post("/api/tasks", json={"title": "Call Bob", "due": "2026-09-25"})
+    assert response.status_code == 201
+    task = response.json()
+    assert task["due"] == "2026-09-25"
+    assert task["quadrant"] is None and task["triaged_on"] is None
+    queue = client.get("/api/tasks").json()["triage"]["queue"]
+    assert [(t["id"], t["reason"]) for t in queue] == [(task["id"], "unsorted")]
+
+
+def test_a_null_date_on_create_is_no_date(client):
+    task = client.post("/api/tasks", json={"title": "Call Bob", "due": None}).json()
+    assert task["due"] is None

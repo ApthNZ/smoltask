@@ -15,7 +15,9 @@ read and write every task, by design.
 | Parameterised SQL everywhere; no string-built queries | `db.py` | `test_title_is_data_not_sql`, `test_search_is_data_not_sql` |
 | Archive `sort`/`dir`/`outcome` matched against an allowlist, never interpolated | `db.py:list_archive` | `test_archive_sort_is_allowlisted` |
 | Titles: control characters and null bytes stripped, length bounded 1–80 | `app.py:clean_title` | `test_title_control_characters_are_stripped`, `test_oversized_titles_are_rejected` |
-| Dates validated as real calendar dates before reaching SQL | `app.py:validate_due` | `test_due_dates_are_validated` |
+| Dates validated as real calendar dates before reaching SQL, on create as on patch | `app.py:validate_due` | `test_due_dates_are_validated`, `test_a_date_on_create_is_validated_like_any_other` |
+| Settings labels: shape enforced by the model, control characters stripped, lengths bounded, names required and distinct; stored as a bound JSON parameter and rendered as text | `app.py:clean_labels`, `db.py:set_labels` | `test_labels_are_data_not_markup_or_sql`, `test_label_control_characters_are_stripped`, `tests/test_settings.py` |
+| A damaged settings row falls back to the defaults rather than failing the page | `db.py:get_labels` | `test_a_damaged_row_falls_back_to_the_defaults` |
 | Quadrants constrained to 1–4 at the API *and* by a `CHECK` in the schema | `app.py`, `db.py` | `test_quadrants_are_bounded` |
 | Static mount cannot escape its directory | `app.py` | `test_static_mount_does_not_escape` |
 | No database path or filesystem detail in any response | `app.py` | `test_no_route_exposes_the_database_path` |

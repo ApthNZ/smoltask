@@ -167,6 +167,46 @@ def test_due_dates_are_validated(client):
     assert client.patch(f"/api/tasks/{task['id']}", json={"due": "2026-09-18"}).status_code == 200
 
 
+def test_a_date_on_create_is_validated_like_any_other(client):
+    for due in ("2026-02-30", "friday", "2026-9-1", "2026-09-25; DROP TABLE task"):
+        response = client.post("/api/tasks", json={"title": "Call Bob", "due": due})
+        assert response.status_code == 400, due
+    assert client.get("/api/tasks").json()["tasks"] == [], "a rejected create wrote a row"
+
+
+def test_labels_are_data_not_markup_or_sql(client, conn):
+    """They reach the page through textContent, never innerHTML, so they are
+    stored exactly as typed — escaping here would show the escapes."""
+    import copy
+
+    value = copy.deepcopy(db.DEFAULT_LABELS)
+    value["quadrants"][0]["name"] = "<b>x</b>'); --"
+    value["quadrants"][1]["definition"] = "<img src=x onerror=alert(1)>"
+    saved = client.put("/api/settings", json={"labels": value}).json()["labels"]
+    assert saved["quadrants"][0]["name"] == "<b>x</b>'); --"
+    assert conn.execute("SELECT COUNT(*) FROM task").fetchone()[0] == 0
+    assert "innerHTML" not in (ROOT / "static" / "app.js").read_text()
+
+
+def test_label_control_characters_are_stripped(client):
+    import copy
+
+    value = copy.deepcopy(db.DEFAULT_LABELS)
+    value["quadrants"][0]["name"] = "To\x00da\x1by"
+    value["matrix"]["rows"][0] = "imp\u202eortant"
+    saved = client.put("/api/settings", json={"labels": value}).json()["labels"]
+    assert saved["quadrants"][0]["name"] == "Today"
+    assert saved["matrix"]["rows"][0] == "important"
+
+
+def test_oversized_label_bodies_are_refused_before_cleaning(client):
+    import copy
+
+    value = copy.deepcopy(db.DEFAULT_LABELS)
+    value["quadrants"][0]["name"] = "x" * 5000
+    assert client.put("/api/settings", json={"labels": value}).status_code == 422
+
+
 def test_quadrants_are_bounded(client):
     task = add(client, "Email bob")
     for bad_quadrant in (0, 5, -1, 99):

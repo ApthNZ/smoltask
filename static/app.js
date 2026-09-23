@@ -1,6 +1,6 @@
 // smoltask front end. No build step, no framework, no dependencies.
 //
-// Two views, one page each. The tasks view is a notebook: a capture line, then
+// Three views, one page each. The tasks view is a notebook: a capture line, then
 // ruled rows grouped by quadrant. Everything is reachable from the keyboard,
 // because the mouse is what made the tool this replaces dangerous — a list that
 // reflows under the cursor is how you complete the wrong row.
@@ -8,16 +8,30 @@
 // Hues are smolplan's, chosen there to stay clear of the green and red used for
 // status — so overdue stays the only red on the page. Warm at the top, cool
 // further down, nothing at all for the two sections that are not a priority.
+//
+// The key and the hue are fixed, because behaviour hangs off the number: 1 goes
+// stale, 4 is the one a date contradicts. What each is *called*, and what it
+// means, is the user's — it comes from the server as `labels`, edited on the
+// Settings tab. See `quadrants()`.
 const QUADRANTS = [
-  { n: 1, name: "Now", axis: "urgent & important", hue: 30 },
-  { n: 2, name: "Next", axis: "important, not urgent", hue: 210 },
-  { n: 3, name: "Last", axis: "urgent, not important", hue: 265 },
-  { n: 4, name: "Never", axis: "neither", hue: null },
+  { n: 1, hue: 30 },
+  { n: 2, hue: 210 },
+  { n: 3, hue: 265 },
+  { n: 4, hue: null },
 ];
-const UNSORTED = { n: null, name: "Unsorted", axis: "not yet triaged", hue: null };
+const UNSORTED = { n: null, name: "Unsorted", definition: "not yet triaged", hue: null };
 const NEVER = 4;
+const STALE = 1;
 const SECTIONS = [...QUADRANTS, UNSORTED];
 const MAX_TITLE = 80;
+// Must agree with db.MAX_NAME, MAX_DEFINITION and MAX_AXIS.
+const MAX_NAME = 20;
+const MAX_DEFINITION = 60;
+const MAX_AXIS = 20;
+// Room in the capture line for a date on the end of the title — " ~2026-09-30"
+// — so a full 80-character title can still take one. The title is held to 80
+// on its own; see onCaptureKey.
+const DATE_ROOM = 12;
 const COUNTER_FROM = 65;
 const UNDO_VISIBLE_MS = 12000;
 const DAY_CHECK_MS = 60000;
@@ -34,11 +48,15 @@ const KEYMAPS = {
             ["Ctrl+Z", "undo a completion"]],
   list: [["j k ↑ ↓", "move"], ["space", "done"], ["1-4", "rank"], ["0", "unsort"],
          ["d", "due date"], ["e", "edit"], ["p", "triage"], ["a", "archive"],
-         ["/", "new task"], ["Ctrl+Z", "undo"]],
+         ["s", "settings"], ["/", "new task"], ["Ctrl+Z", "undo"]],
   triage: [["j k ↑ ↓", "move"], ["1-4", "rank"], ["d", "due date"],
-           ["space", "done"], ["n", "skip"], ["Esc", "leave triage"]],
+           ["space", "done"], ["n", "skip"], ["/", "new task"], ["Esc", "leave triage"]],
+  // Writing a task mid-triage. Letters are text here, like any capture line,
+  // and the way back is to the lit task rather than into the list.
+  triageCapture: [["Enter", "add it to the end of triage"], ["Esc", "back to triage"]],
   archive: [["t", "back to tasks"], ["click a heading", "sort"],
             ["Restore", "put it back on the page"]],
+  settings: [["Tab", "next field"], ["Enter", "save"], ["Esc t", "back to tasks"]],
 };
 
 const state = {
@@ -57,7 +75,18 @@ const state = {
   undo: [],
   barUntil: 0,
   archive: { rows: [], sort: "finished", dir: "desc", q: "", outcome: "" },
+  labels: null,
+  // `draft` outlives a trip to another tab, so half-finished edits are still
+  // there on the way back. Only Save writes; nothing is saved by leaving.
+  settings: { draft: null, defaults: null },
 };
+
+// The four quadrants with the user's names on them.
+function quadrants() {
+  return QUADRANTS.map((q, i) => ({ ...q, ...state.labels.quadrants[i] }));
+}
+
+const nameOf = (n) => state.labels.quadrants[n - 1].name;
 
 // --- tiny DOM helpers --------------------------------------------------------
 
@@ -154,6 +183,23 @@ function parseDue(input, today) {
   return undefined;
 }
 
+// `call Bob ~fri` files the task with a date in one go: the last word, when it
+// starts with `~` and is something the `d` box would take. Anything else stays
+// text. That rule is what keeps a pasted URL safe — `/` would have split every
+// one of them — and a path like ~/notes, or "about ~5 mins", reads as no date,
+// because neither is a `~` word the date box understands. `~~fri` works too, as
+// a courtesy to the obvious guess.
+const INLINE_DUE = /\s~+(\S+)$/;
+
+function splitDue(line, today) {
+  const text = (line || "").trim();
+  const match = INLINE_DUE.exec(text);
+  const due = match ? parseDue(match[1], today) : undefined;
+  // parseDue answers null for "clear the date", which is not a date to file.
+  if (typeof due !== "string") return { title: text, due: null };
+  return { title: text.slice(0, match.index).trim(), due };
+}
+
 // --- loading -----------------------------------------------------------------
 
 // A server in the wrong timezone gets every "today" question wrong — the tick
@@ -175,6 +221,7 @@ async function loadTasks({ autoTriage = false } = {}) {
   state.tasks = data.tasks;
   state.triage = data.triage;
   state.doneToday = data.done_today;
+  state.labels = data.labels;
   if (state.focus !== null && !state.tasks.some((t) => t.id === state.focus)) state.focus = null;
   if (autoTriage && data.triage.auto && data.triage.queue.length) startTriage();
   render();
@@ -193,6 +240,7 @@ async function loadArchive() {
 function render() {
   for (const button of $("tabs").children) button.classList.toggle("on", button.dataset.view === state.view);
   if (state.view === "tasks") renderTasks();
+  else if (state.view === "settings") renderSettings();
   else renderArchive();
   renderUndo();
   renderKeys();
@@ -200,7 +248,8 @@ function render() {
 
 function whichKeymap() {
   if (state.view === "archive") return "archive";
-  if (state.triaging) return "triage";
+  if (state.view === "settings") return "settings";
+  if (state.triaging) return state.capturing ? "triageCapture" : "triage";
   return state.capturing ? "capture" : "list";
 }
 
@@ -220,7 +269,7 @@ function renderTasks() {
         ? `Nothing on the page. ${state.doneToday} ticked today.`
         : "Nothing on the page."));
   } else {
-    for (const section of SECTIONS) {
+    for (const section of [...quadrants(), UNSORTED]) {
       const rows = state.tasks.filter((t) => t.quadrant === section.n);
       if (!rows.length) continue;
       const hue = section.hue === null ? null : `--h: ${section.hue}`;
@@ -230,7 +279,7 @@ function renderTasks() {
         // so this is the only place the mapping is on the page all day.
         section.n ? el("span", { class: "rank" }, section.n) : null,
         el("span", { class: "name" }, section.name),
-        section.axis ? el("span", { class: "axis" }, `— ${section.axis}`) : null));
+        section.definition ? el("span", { class: "axis" }, `— ${section.definition}`) : null));
       for (const task of rows) blocks.push(taskRow(task, section.hue));
     }
   }
@@ -249,8 +298,8 @@ function focusInput(selector) {
 function captureRow() {
   const input = el("input", {
     id: "capture",
-    maxlength: MAX_TITLE,
-    placeholder: "Write a task, press Enter",
+    maxlength: MAX_TITLE + DATE_ROOM,
+    placeholder: "Write a task, press Enter · end with ~fri to date it",
     autocomplete: "off",
     oninput: updateCounter,
     onkeydown: onCaptureKey,
@@ -262,16 +311,25 @@ function captureRow() {
     input,
     el("span", { class: "gap" }),
     el("span", { id: "counter", class: "counter" }),
+    el("span", { id: "capdue", class: "due" }),
     el("div", { class: "box" }));
 }
 
+// The counter counts the title, not the line: a `~fri` on the end is not part
+// of the eighty. The date it will file under is shown where the row will show
+// it, so what Enter is about to do is on screen before it happens — and a `~`
+// word that is *not* a date visibly isn't one.
 function updateCounter() {
   const input = $("capture");
   const counter = $("counter");
-  if (!input || !counter) return;
-  const used = input.value.length;
+  const capdue = $("capdue");
+  if (!input || !counter || !capdue) return;
+  const { title, due } = splitDue(input.value, state.today);
+  const used = title.length;
   counter.textContent = used >= COUNTER_FROM ? `${used}/${MAX_TITLE}` : "";
   counter.classList.toggle("full", used >= MAX_TITLE);
+  capdue.textContent = due ? formatDue(due, state.today) : "";
+  capdue.title = due ? `Due ${due}` : "";
 }
 
 function taskRow(task, hue = null) {
@@ -340,6 +398,7 @@ function taskRow(task, hue = null) {
 }
 
 function select(id) {
+  if (state.triaging) { pickForTriage(id); return; }
   if (state.focus === id && state.editing === null) return;
   state.focus = id;
   state.editing = null;
@@ -353,7 +412,8 @@ function dueLabel(task) {
   // yourself you will not keep. Same red as overdue, because it is the same
   // message: this date needs a human. Nothing else moves.
   const disowned = task.quadrant === NEVER;
-  const why = [overdue ? "overdue" : null, disowned ? "ranked Never" : null].filter(Boolean);
+  const why = [overdue ? "overdue" : null,
+               disowned ? `ranked ${nameOf(NEVER)}` : null].filter(Boolean);
   return el("span", {
     class: `due ${overdue || disowned ? "over" : ""}`,
     title: why.length ? `Due ${task.due} — ${why.join(", and ")}` : `Due ${task.due}`,
@@ -366,22 +426,25 @@ function triageBar() {
   const remaining = (reason) => left.filter((t) => t.reason === reason).length;
   const parts = [];
   if (remaining("unsorted")) parts.push(`${remaining("unsorted")} to sort`);
-  if (remaining("disowned")) parts.push(`${remaining("disowned")} dated Never`);
+  if (remaining("disowned")) parts.push(`${remaining("disowned")} dated ${nameOf(NEVER)}`);
   if (remaining("due")) parts.push(`${remaining("due")} due soon`);
   if (remaining("stale")) parts.push(`${remaining("stale")} stale`);
 
   const why = {
     unsorted: "not triaged yet",
-    disowned: "dated, but ranked Never",
+    disowned: `dated, but ranked ${nameOf(NEVER)}`,
     due: "due today or tomorrow",
-    stale: "in Now for over a week",
+    stale: `in ${nameOf(STALE)} for over a week`,
+    picked: "picked by hand",
   }[task && task.reason] || "";
 
   // No key hints here: the legend at the foot of the page already shows the
   // triage keys, and repeating them made the bar wrap onto two lines.
   return el("div", { class: "triage" },
     el("b", {}, task ? "Triage" : "Page is triaged."),
-    task ? el("span", {}, `${state.qi + 1} of ${state.queue.length} — ${parts.join(", ")}`) : null,
+    // A queue holding only hand-picked tasks has no reasons to count.
+    task ? el("span", {}, `${state.qi + 1} of ${state.queue.length}${
+      parts.length ? ` — ${parts.join(", ")}` : ""}`) : null,
     task ? el("span", { class: "why" }, `· ${why}`) : null);
 }
 
@@ -393,20 +456,32 @@ function triageBar() {
 // The axes sit on the edges rather than in the cells: repeating "urgent &
 // important" inside the top-left cell says the same thing twice, and the height
 // is not free — the highlighted task has to stay above the fold.
+//
+// Names and axes are the user's, from Settings. Someone who has stopped
+// thinking in Eisenhower terms can empty all four axes, and the grid is then
+// just the four keys, two by two, with no edges claiming a meaning they dropped.
 function quadrantGrid() {
+  const { columns, rows } = state.labels.matrix;
+  const [now, next, last, never] = quadrants();
+  if (![...columns, ...rows].some(Boolean)) {
+    return el("div", { class: "matrix bare" },
+      matrixCell(now), matrixCell(next), matrixCell(last), matrixCell(never));
+  }
   const head = (text) => el("span", { class: "head" }, text);
-  // Never has no hue on purpose, here as in the sections: colouring it would
-  // say it ranks.
-  const cell = (quadrant) => el("span", {
+  return el("div", { class: "matrix" },
+    head(""), head(columns[0]), head(columns[1]),
+    head(rows[0]), matrixCell(now), matrixCell(next),
+    head(rows[1]), matrixCell(last), matrixCell(never));
+}
+
+// Never has no hue on purpose, here as in the sections: colouring it would say
+// it ranks.
+function matrixCell(quadrant) {
+  return el("span", {
     class: `cell chord ${quadrant.hue === null ? "" : "hued"}`,
     style: quadrant.hue === null ? null : `--h: ${quadrant.hue}`,
+    "data-cell": quadrant.n,
   }, el("kbd", {}, quadrant.n), el("i", {}, quadrant.name));
-
-  const [now, next, last, never] = QUADRANTS;
-  return el("div", { class: "matrix" },
-    head(""), head("urgent"), head("not urgent"),
-    head("important"), cell(now), cell(next),
-    head("not important"), cell(last), cell(never));
 }
 
 // --- archive -----------------------------------------------------------------
@@ -481,6 +556,128 @@ function archiveRow(task) {
     }, "Restore")));
 }
 
+// --- settings ----------------------------------------------------------------
+
+// What the priorities are called and what they mean — cosmetic, so it is data
+// rather than code. The keys, the order and the colours are not on this page:
+// they are what the rest of the app's behaviour is built on.
+const clone = (value) => JSON.parse(JSON.stringify(value));
+
+async function loadSettings() {
+  const data = await api("/api/settings");
+  state.labels = data.labels;
+  state.settings.defaults = data.defaults;
+  if (!settingsDirty()) state.settings.draft = clone(data.labels);
+  render();
+}
+
+function settingsDirty() {
+  const { draft } = state.settings;
+  return draft !== null && JSON.stringify(draft) !== JSON.stringify(state.labels);
+}
+
+function renderSettings() {
+  const { draft } = state.settings;
+  if (!draft) { setChildren($("view")); return; }
+
+  // One input shape for every field. `set` writes the draft; nothing is sent
+  // until Save.
+  const field = (value, max, set, attrs) => el("input", {
+    value,
+    maxlength: max,
+    autocomplete: "off",
+    ...attrs,
+    oninput: (e) => { set(e.target.value); settingsChanged(); },
+    onkeydown: onSettingsKey,
+  });
+
+  const rows = draft.quadrants.map((q, i) => {
+    const hue = QUADRANTS[i].hue;
+    return el("div", { class: `label-row ${hue === null ? "" : "hued"}`,
+                       style: hue === null ? null : `--h: ${hue}` },
+      el("span", { class: "chord" }, el("kbd", {}, i + 1)),
+      field(q.name, MAX_NAME, (v) => { q.name = v; }, {
+        class: "name", "aria-label": `Name of priority ${i + 1}`,
+      }),
+      field(q.definition, MAX_DEFINITION, (v) => { q.definition = v; }, {
+        class: "definition", placeholder: "no definition",
+        "aria-label": `Definition of priority ${i + 1}`,
+      }));
+  });
+
+  // The grid as triage shows it, with its edges editable in place — so what an
+  // axis label is for is obvious from where it sits.
+  const axis = (key, at, label) => field(draft.matrix[key][at], MAX_AXIS,
+    (v) => { draft.matrix[key][at] = v; },
+    { class: "head", placeholder: label.toLowerCase(), "aria-label": label });
+  const [now, next, last, never] = QUADRANTS.map((q, i) => ({ ...q, ...draft.quadrants[i] }));
+  const grid = el("div", { class: "matrix editable" },
+    el("span", {}), axis("columns", 0, "Left column"), axis("columns", 1, "Right column"),
+    axis("rows", 0, "Top row"), matrixCell(now), matrixCell(next),
+    axis("rows", 1, "Bottom row"), matrixCell(last), matrixCell(never));
+
+  setChildren($("view"),
+    el("div", { class: "settings" },
+      el("h2", {}, "Priorities"),
+      el("p", { class: "note" },
+        "What each priority is called on the page, and the line of explanation " +
+        "beside it. The keys, the order and the colours stay as they are."),
+      el("div", { class: "labels" }, ...rows),
+      el("h2", {}, "Triage grid"),
+      el("p", { class: "note" },
+        "The edges of the grid triage shows. Leave all four empty and the grid " +
+        "is just the four keys."),
+      grid,
+      el("div", { class: "actions" },
+        el("button", { id: "save", class: "primary", onclick: saveSettings }, "Save"),
+        el("button", {
+          onclick: () => { state.settings.draft = clone(state.settings.defaults); render(); },
+        }, "Restore defaults"),
+        el("span", { id: "unsaved", class: "unsaved" }))));
+  settingsChanged();
+}
+
+// Called on every keystroke, so it touches the few nodes that change rather
+// than re-rendering — a re-render would take the cursor out of the field.
+function settingsChanged() {
+  const { draft } = state.settings;
+  draft.quadrants.forEach((q, i) => {
+    const name = document.querySelector(`[data-cell="${i + 1}"] i`);
+    if (name) name.textContent = q.name;
+  });
+  const dirty = settingsDirty();
+  const save = $("save");
+  if (save) save.disabled = !dirty;
+  const unsaved = $("unsaved");
+  if (unsaved) unsaved.textContent = dirty ? "Unsaved changes" : "";
+}
+
+async function saveSettings() {
+  if (!settingsDirty()) return;
+  try {
+    const data = await api("/api/settings", {
+      method: "PUT", body: JSON.stringify({ labels: state.settings.draft }),
+    });
+    state.labels = data.labels;
+    state.settings.draft = clone(data.labels);
+    render();
+    toast("Saved.", "ok");
+  } catch (err) {
+    toast(err.message);
+  }
+}
+
+function onSettingsKey(event) {
+  if (["Enter", "Escape"].includes(event.key)) event.stopPropagation();
+  if (event.key === "Enter") {
+    event.preventDefault();
+    saveSettings();
+  } else if (event.key === "Escape") {
+    event.preventDefault();
+    event.target.blur();
+  }
+}
+
 // --- undo --------------------------------------------------------------------
 
 function renderUndo() {
@@ -503,6 +700,9 @@ function renderUndo() {
 function checkForDayRollover() {
   if (state.today && localDate() === state.today) return false;
   if (state.editing !== null || state.dueFor !== null) return false;
+  // A repaint there would take the cursor out of the field being typed in. The
+  // Tasks tab reloads on the way back anyway.
+  if (state.view === "settings") return false;
   const capture = $("capture");
   if (capture && capture.value) return false;
   loadTasks({ autoTriage: state.view === "tasks" && !state.triaging });
@@ -520,10 +720,22 @@ async function undoLast() {
 
 // --- actions -----------------------------------------------------------------
 
-async function addTask(title) {
-  const trimmed = title.trim();
-  if (!trimmed) return;
-  await api("/api/tasks", { method: "POST", body: JSON.stringify({ title: trimmed }) });
+async function addTask(line) {
+  const { title, due } = splitDue(line, state.today);
+  if (!title) return;
+  let task;
+  try {
+    task = await api("/api/tasks", { method: "POST", body: JSON.stringify({ title, due }) });
+  } catch (err) {
+    // Not written, so give the words back rather than losing them.
+    const box = $("capture");
+    if (box && !box.value) { box.value = line; updateCounter(); }
+    toast(err.message);
+    return;
+  }
+  // Triage picks it up after: the queue is a snapshot, so without this a task
+  // written mid-triage could be neither walked to nor clicked on.
+  if (state.triaging) state.queue.push({ ...task, reason: "unsorted" });
   await loadTasks();
   // The re-render destroys the input the keystroke came from, and focus falls
   // to the body. Rendering only restores it when nothing is selected, so with a
@@ -541,7 +753,20 @@ async function completeTask(id) {
   state.undo.push({ id, title: task.title });
   state.barUntil = Date.now() + UNDO_VISIBLE_MS;
   setTimeout(renderUndo, UNDO_VISIBLE_MS + 50);
-  if (state.triaging) { advance(); return; }
+  if (state.triaging) {
+    const current = queueTask();
+    if (current && current.id === id) { advance(); return; }
+    // Ticked by mouse on a row that is not the lit one. Advancing would step
+    // off the task being triaged without anything having happened to it, so
+    // the ticked one leaves the queue and the pointer stays where it is.
+    const at = state.queue.findIndex((t) => t.id === id);
+    if (at >= 0) {
+      state.queue.splice(at, 1);
+      if (at < state.qi) state.qi -= 1;
+    }
+    await loadTasks();
+    return;
+  }
   state.focus = next;
   await loadTasks();
 }
@@ -589,6 +814,22 @@ function stopTriage() {
   render();
 }
 
+// A click in triage means "this one": the lit task moves to it. One already in
+// the queue is jumped to, as the arrows would; one that is not is slotted in
+// at the current place, so the task you were on comes straight after it.
+function pickForTriage(id) {
+  const at = state.queue.findIndex((t) => t.id === id);
+  if (at >= 0) {
+    state.qi = at;
+  } else {
+    const task = state.tasks.find((t) => t.id === id);
+    if (!task) return;
+    state.queue.splice(state.qi, 0, { ...task, reason: "picked" });
+  }
+  state.dueFor = null;
+  render();
+}
+
 async function advance() {
   state.qi += 1;
   state.dueFor = null;
@@ -597,7 +838,9 @@ async function advance() {
     const seen = state.queue.length;
     render();
     toast(`Page is triaged. ${seen} looked at.`, "ok");
-    setTimeout(stopTriage, 1200);
+    // Unless something was written in the moment before it closes, which puts
+    // a task back in front of the pointer.
+    setTimeout(() => { if (state.triaging && state.qi >= state.queue.length) stopTriage(); }, 1200);
     return;
   }
   render();
@@ -653,17 +896,30 @@ function onCaptureKey(event) {
   if (event.key === "Enter") {
     event.preventDefault();
     const value = input.value;
+    // The line has room for a date on the end, so the eighty is held here
+    // rather than by maxlength — and the words stay put when it is too long.
+    if (splitDue(value, state.today).title.length > MAX_TITLE) {
+      toast(`A task title is at most ${MAX_TITLE} characters.`);
+      return;
+    }
     input.value = "";
     updateCounter();
     addTask(value);
   } else if (event.key === "ArrowDown") {
     event.preventDefault();
     input.blur();
-    moveFocus(1);
+    leaveCapture();
   } else if (event.key === "Escape") {
     if (input.value) { input.value = ""; updateCounter(); }
-    else { input.blur(); moveFocus(1); }
+    else { input.blur(); leaveCapture(); }
   }
+}
+
+// Out of the capture line: into the list, or in triage back to the lit task —
+// the list's own focus means nothing there.
+function leaveCapture() {
+  if (state.triaging) render();
+  else moveFocus(1);
 }
 
 function onEditKey(event, task) {
@@ -755,13 +1011,17 @@ document.addEventListener("keydown", (event) => {
       state.triaging ? stopTriage() : startTriage();
       break;
     case "/":
+      // Triage never blocks capture, and writing a task is not leaving it:
+      // what you write joins the end of the queue.
       event.preventDefault();
+      if (state.view !== "tasks") break;
       state.focus = null;
-      if (state.triaging) stopTriage(); else render();
+      render();
       focusInput("#capture");
       break;
     case "a": event.preventDefault(); show("archive"); break;
     case "t": event.preventDefault(); show("tasks"); break;
+    case "s": event.preventDefault(); show("settings"); break;
     case "Escape":
       event.preventDefault();
       if (state.triaging) stopTriage();
@@ -780,6 +1040,7 @@ function show(view) {
   state.editing = null;
   state.dueFor = null;
   if (view === "archive") { stopTriage(); loadArchive(); }
+  else if (view === "settings") { stopTriage(); loadSettings(); }
   else loadTasks();
 }
 

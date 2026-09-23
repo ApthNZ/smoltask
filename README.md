@@ -47,6 +47,13 @@ Enter, it exists. No dialog, no second step, no field that must be filled before
 the thing you just heard in a meeting can be written down. Focus stays put, so
 three tasks is three sentences and three Enters.
 
+**Date it as you write it.** End the line with `~` and a date — `call Bob ~fri`,
+`renew passport ~+30` — and the task is filed with that date. It takes anything
+the `d` box does. The date the line will file under shows at the right margin
+before you press Enter, so a `~` word that isn't a date visibly isn't one. Only
+the last word counts, and only when it starts with `~`, so a pasted URL, a path
+like `~/notes` or "about ~5 mins" stays exactly as typed.
+
 **Titles are capped at 80 characters, on one line.** This is a forcing function,
 not a limitation. If it doesn't fit on a ruled line it isn't one thought, and
 the place for the detail is wherever the work actually happens.
@@ -71,6 +78,12 @@ after the meeting than during it. Four sections, Eisenhower underneath:
 | **Never** | neither | be honest |
 | **Unsorted** | | at the bottom, where it belongs |
 
+Those are the defaults. The names and the line beside each one are yours to
+change on the **Settings** tab, as are the edges of the grid triage shows — or
+empty all four edges and the grid is just the keys. It's cosmetic: `1` is still
+the one that goes stale, `4` still the one a date contradicts, and the order and
+colours stay put.
+
 Each ranked section has a colour — warm at the top, cool further down — on its
 name and as a thin rule down the margin of its rows. `Never` and `Unsorted` get
 none, because colouring them would imply they rank. A red date is the only red
@@ -94,7 +107,9 @@ and move on. `p` runs it again whenever you like. It asks about three things:
   really urgent, or you're avoiding it
 
 You can tick a task during triage. Triage is where you notice a task stopped
-being a thing.
+being a thing. You can also write one: `/` (or a click on the capture line)
+takes a new task without leaving triage, and it joins the end of the queue.
+Clicking any task makes it the one being triaged.
 
 **Due dates, quietly.** `d` on a task, then `tod`, `tom`, `fri`, `+3`, or a
 date — any prefix of the word will do, so `t`, `to` and `today` are all today.
@@ -122,8 +137,8 @@ in an empty capture line steps down into the list.
 | `1`–`4` | rank · `0` unsorts |
 | `d` | due date — `tod`, `tom`, `fri`, `+3`, a date, `-` to clear |
 | `p` | run triage |
-| `a` / `t` | Archive / Tasks |
-| `/` | back to the capture line to write another |
+| `a` / `t` / `s` | Archive / Tasks / Settings |
+| `/` | back to the capture line to write another — in triage too |
 | `Ctrl+Z` / `u` | undo the last completion, repeatedly |
 
 The keyboard is the good path, not the power-user path. A list that reflows

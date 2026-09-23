@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import copy
+import json
 import os
 import sqlite3
 from datetime import date, datetime, timedelta
@@ -28,11 +30,39 @@ CREATE TABLE IF NOT EXISTS task (
 );
 
 CREATE INDEX IF NOT EXISTS task_open ON task(finished_at);
+
+-- The user's words for things, never behaviour: one row per key, JSON values.
+-- Read with a fallback to the defaults, so a missing or damaged row can only
+-- ever cost a label, never the page.
+CREATE TABLE IF NOT EXISTS setting (
+    key   TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+);
 """
 
 MAX_TITLE = 80
 STALE_DAYS = 7
 NEVER = 4  # the quadrant that says this will not happen
+
+# What the four quadrants are called, what each one means, and the axes of the
+# grid triage shows. Cosmetic by construction: the page's behaviour hangs off the
+# quadrant *number* — 1 goes stale, 4 is the one a date contradicts — so renaming
+# one changes what it says and nothing about what it does.
+DEFAULT_LABELS = {
+    "quadrants": [
+        {"name": "Now", "definition": "urgent & important"},
+        {"name": "Next", "definition": "important, not urgent"},
+        {"name": "Last", "definition": "urgent, not important"},
+        {"name": "Never", "definition": "neither"},
+    ],
+    "matrix": {
+        "columns": ["urgent", "not urgent"],
+        "rows": ["important", "not important"],
+    },
+}
+MAX_NAME = 20
+MAX_DEFINITION = 60
+MAX_AXIS = 20
 
 # SQLite stores integers in 64 bits. A larger id cannot name a row, and handing
 # one to the driver raises OverflowError rather than simply not matching — which
@@ -172,9 +202,11 @@ def _escape_like(text: str) -> str:
 # --- writes ------------------------------------------------------------------
 
 
-def create_task(conn, title: str) -> dict:
+def create_task(conn, title: str, due: str | None = None) -> dict:
+    """A new task is unsorted and untriaged even when it is born with a date —
+    capturing `call Bob ~fri` has not ranked anything."""
     cur = conn.execute(
-        "INSERT INTO task (title, created_at) VALUES (?, ?)", (title, now())
+        "INSERT INTO task (title, due, created_at) VALUES (?, ?, ?)", (title, due, now())
     )
     conn.commit()
     return get_task(conn, cur.lastrowid)
@@ -220,6 +252,46 @@ def mark_triaged(conn, task_id: int, day: str | None) -> dict | None:
     conn.execute("UPDATE task SET triaged_on = ? WHERE id = ?", (day, task_id))
     conn.commit()
     return get_task(conn, task_id)
+
+
+# --- settings ----------------------------------------------------------------
+
+
+def _is_labels(value) -> bool:
+    """The shape of DEFAULT_LABELS. The API validates properly on the way in;
+    this only has to notice a row that did not come from it."""
+    try:
+        quadrants, matrix = value["quadrants"], value["matrix"]
+        return (
+            len(quadrants) == 4
+            and all(isinstance(q["name"], str) and q["name"]
+                    and isinstance(q["definition"], str) for q in quadrants)
+            and all(len(matrix[k]) == 2 and all(isinstance(t, str) for t in matrix[k])
+                    for k in ("columns", "rows"))
+        )
+    except (KeyError, TypeError):
+        return False
+
+
+def get_labels(conn) -> dict:
+    row = conn.execute("SELECT value FROM setting WHERE key = 'labels'").fetchone()
+    if row is not None:
+        try:
+            stored = json.loads(row["value"])
+        except ValueError:
+            stored = None
+        if _is_labels(stored):
+            return stored
+    return copy.deepcopy(DEFAULT_LABELS)
+
+
+def set_labels(conn, labels: dict) -> dict:
+    conn.execute(
+        "INSERT OR REPLACE INTO setting (key, value) VALUES ('labels', ?)",
+        (json.dumps(labels),),
+    )
+    conn.commit()
+    return get_labels(conn)
 
 
 # --- triage ------------------------------------------------------------------
