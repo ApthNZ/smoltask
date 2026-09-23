@@ -285,14 +285,20 @@ function renderTasks() {
   }
   setChildren($("view"), ...blocks);
 
-  if (state.editing !== null) focusInput(`[data-edit="${state.editing}"]`);
+  // Editing a title is usually changing a word, not replacing the line: the
+  // cursor goes to the end with nothing selected, so Ctrl+arrows walk the words
+  // and a stray keystroke cannot wipe the title. Ctrl+A is there to replace it.
+  if (state.editing !== null) focusInput(`[data-edit="${state.editing}"]`, { caretAtEnd: true });
   else if (state.dueFor !== null) focusInput(`[data-due="${state.dueFor}"]`);
   else if (!state.triaging && state.focus === null) focusInput("#capture");
 }
 
-function focusInput(selector) {
+function focusInput(selector, { caretAtEnd = false } = {}) {
   const node = document.querySelector(selector);
-  if (node) { node.focus(); node.select?.(); }
+  if (!node) return;
+  node.focus();
+  if (caretAtEnd) node.setSelectionRange(node.value.length, node.value.length);
+  else node.select?.();
 }
 
 function captureRow() {

@@ -550,3 +550,12 @@ def test_ticking_another_row_in_triage_does_not_skip_the_lit_one():
     assert "if (current && current.id === id) { advance(); return; }" in body
     assert "state.queue.splice(at, 1);" in body
     assert "if (at < state.qi) state.qi -= 1;" in body
+
+
+def test_editing_a_title_puts_the_cursor_at_the_end_not_over_the_text():
+    """Selecting the whole title meant the first keystroke replaced it, and
+    getting to a word meant pressing Right first. An edit is usually one word."""
+    assert 'focusInput(`[data-edit="${state.editing}"]`, { caretAtEnd: true });' in APP_JS
+    body = APP_JS[APP_JS.index("function focusInput("):]
+    body = body[:body.index("\n}\n")]
+    assert "node.setSelectionRange(node.value.length, node.value.length)" in body
