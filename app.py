@@ -16,9 +16,10 @@ from contextlib import asynccontextmanager
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, StrictInt
 
 import db
+import guard
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 
@@ -45,7 +46,15 @@ async def lifespan(_app: FastAPI):
     yield
 
 
-app = FastAPI(title="smoltask", lifespan=lifespan)
+# No /docs, /redoc or /openapi.json. Nothing uses them, the Swagger page loads
+# its script from a CDN the CSP would refuse anyway, and a map of every route is
+# not something a page with no login needs to hand out.
+app = FastAPI(title="smoltask", lifespan=lifespan,
+              docs_url=None, redoc_url=None, openapi_url=None)
+
+# Host allowlist, cross-site write refusal and security headers. See guard.py;
+# SMOLTASK_ALLOWED_HOSTS is how a deployment reachable by another name says so.
+app.add_middleware(guard.Guard, hosts=guard.allowed_hosts("SMOLTASK_ALLOWED_HOSTS"))
 
 
 def bad(message: str):
@@ -59,6 +68,21 @@ def missing():
 # --- validation --------------------------------------------------------------
 
 
+# The bidirectional overrides and isolates. They are format characters (Cf),
+# like the joiners an emoji needs, but they exist to make text read in an order
+# other than the one it is stored in — which in a title, a label or a cell of an
+# export is a way to make it say something it does not.
+BIDI_CONTROLS = frozenset(chr(c) for c in (*range(0x202A, 0x202F), *range(0x2066, 0x206A)))
+
+# Stripped outright: controls (Cc), lone surrogates (Cs) and private use (Co).
+# Deliberately not all of category C. Format characters (Cf) include the
+# zero-width joiner that holds a family emoji together and the variation
+# selectors that pick a heart's colour, and unassigned code points (Cn) are
+# only unassigned in *this* Python's Unicode tables — stripping them made new
+# emoji vanish on an older interpreter.
+STRIPPED_CATEGORIES = frozenset({"Cc", "Cs", "Co"})
+
+
 def clean_line(raw: str) -> str:
     """One line of text, as a ruled line can carry it.
 
@@ -69,7 +93,8 @@ def clean_line(raw: str) -> str:
     text = "".join(
         " " if ch in "\t\n\r" else ch
         for ch in (raw or "")
-        if ch in "\t\n\r" or unicodedata.category(ch)[0] != "C"
+        if ch in "\t\n\r"
+        or (unicodedata.category(ch) not in STRIPPED_CATEGORIES and ch not in BIDI_CONTROLS)
     )
     return re.sub(r"\s+", " ", text).strip()
 
@@ -102,7 +127,9 @@ def validate_quadrant(value: int | None) -> int | None:
     """None is unsorted, which is a resting state and not an error."""
     if value is None:
         return None
-    if not isinstance(value, int) or isinstance(value, bool) or value not in (1, 2, 3, 4):
+    # TaskPatch is strict, so a bool or a float never gets this far through the
+    # API; the type check is for any other caller. `True in (1, 2, 3, 4)` holds.
+    if type(value) is not int or value not in (1, 2, 3, 4):
         raise ValueError("A quadrant is 1, 2, 3 or 4, or nothing at all.")
     return value
 
@@ -198,7 +225,9 @@ class TaskIn(BaseModel):
 
 class TaskPatch(BaseModel):
     title: str | None = Field(default=None, max_length=4000)
-    quadrant: int | None = None
+    # Strict: in pydantic's default lax mode `true` became 1, `"2"` became 2 and
+    # `1.0` became 1 before validate_quadrant ever saw them.
+    quadrant: StrictInt | None = None
     due: str | None = None
 
 

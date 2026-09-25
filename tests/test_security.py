@@ -269,3 +269,155 @@ def test_no_route_exposes_the_database_path(client):
 
 def test_health_leaks_nothing(client):
     assert set(client.get("/health").json()) == {"status", "open"}
+
+
+# --- who may talk to it: Host, Origin, Sec-Fetch-Site (guard.py) --------------
+
+# What a form on another site, or a `fetch(..., {mode: "no-cors"})` from one,
+# looks like when it arrives. No preflight is sent for either, so these reach
+# the app unless the app itself refuses them.
+CROSS_SITE_FORM = {"Origin": "https://evil.example",
+                   "Content-Type": "application/x-www-form-urlencoded"}
+CROSS_SITE_FETCH = {"Sec-Fetch-Site": "cross-site", "Origin": "https://evil.example"}
+
+
+@pytest.mark.parametrize("headers", [CROSS_SITE_FORM, CROSS_SITE_FETCH,
+                                     {"Sec-Fetch-Site": "same-site"},
+                                     {"Origin": "null"},
+                                     {"Origin": "http://testserver:9999"}])
+@pytest.mark.parametrize("action", ["complete", "restore", "triaged"])
+def test_a_cross_site_write_is_refused_and_changes_nothing(client, headers, action):
+    """The body-less POSTs were the live hole: a simple request, no preflight,
+    and a side effect that lands even though the answer cannot be read."""
+    task = add(client, "Email bob")
+    if action == "restore":
+        client.post(f"/api/tasks/{task['id']}/complete")
+    before = client.get("/api/tasks").json()
+    response = client.post(f"/api/tasks/{task['id']}/{action}", headers=headers)
+    assert response.status_code == 403
+    assert client.get("/api/tasks").json() == before
+
+
+def test_every_write_route_is_covered_not_just_the_body_less_ones(client):
+    task = add(client, "Email bob")
+    for method, path, body in [
+        ("POST", "/api/tasks", {"title": "x"}),
+        ("PATCH", f"/api/tasks/{task['id']}", {"quadrant": 1}),
+        ("PUT", "/api/settings", {"labels": db.DEFAULT_LABELS}),
+    ]:
+        response = client.request(method, path, json=body, headers=CROSS_SITE_FETCH)
+        assert response.status_code == 403, path
+
+
+def test_the_page_own_requests_still_work(client):
+    """What a browser attaches to a fetch from the app's own page."""
+    same_origin = {"Sec-Fetch-Site": "same-origin", "Origin": "http://testserver"}
+    task = client.post("/api/tasks", json={"title": "Email bob"}, headers=same_origin)
+    assert task.status_code == 201
+    done = client.post(f"/api/tasks/{task.json()['id']}/complete", headers=same_origin)
+    assert done.status_code == 200 and done.json()["outcome"] == "done"
+    # A browser too old to send Sec-Fetch-Site still sends a matching Origin.
+    assert client.post("/api/tasks", json={"title": "x"},
+                       headers={"Origin": "http://testserver"}).status_code == 201
+
+
+def test_scripts_without_browser_headers_still_work(client):
+    """curl and scripts send neither header, and scripted access is intended."""
+    task = client.post("/api/tasks", json={"title": "Email bob"})
+    assert task.status_code == 201
+    assert client.post(f"/api/tasks/{task.json()['id']}/complete").status_code == 200
+
+
+def test_reads_are_not_subject_to_the_origin_check(client):
+    """A cross-site GET cannot read the answer without CORS, and a navigation
+    from a bookmark is a GET. Only writes are refused."""
+    assert client.get("/api/tasks", headers=CROSS_SITE_FETCH).status_code == 200
+
+
+@pytest.mark.parametrize("path", ["/", "/health", "/api/tasks", "/static/app.js"])
+def test_an_unknown_host_is_refused_everywhere(client, path):
+    """DNS rebinding: a page on attacker.example re-points its name at this
+    machine, and the browser then treats the app as the attacker's own origin.
+    The Host header is the one thing that still says which name was used."""
+    response = client.get(path, headers={"Host": "attacker.example"})
+    assert response.status_code == 400
+    assert "Email" not in response.text
+
+
+def test_the_host_allowlist_comes_from_the_environment(monkeypatch):
+    import guard
+
+    monkeypatch.delenv("SMOLTASK_ALLOWED_HOSTS", raising=False)
+    assert guard.allowed_hosts("SMOLTASK_ALLOWED_HOSTS") == {"localhost", "127.0.0.1", "[::1]"}
+    monkeypatch.setenv("SMOLTASK_ALLOWED_HOSTS", " Notebook.example:8108 , [FD00::1]:8108,,")
+    assert guard.allowed_hosts("SMOLTASK_ALLOWED_HOSTS") == {"notebook.example", "[fd00::1]"}
+
+
+def test_hosts_are_compared_without_their_port():
+    import guard
+
+    assert guard.host_only("LOCALHOST:8108") == "localhost"
+    assert guard.host_only("[::1]:8108") == "[::1]", "not split on the first colon"
+    assert guard.host_only("[::1]") == "[::1]"
+
+
+def test_ipv6_loopback_is_allowed_by_default(client):
+    assert client.get("/health", headers={"Host": "[::1]:8108"}).status_code == 200
+
+
+# --- what a loaded page may do ------------------------------------------------
+
+
+@pytest.mark.parametrize("path", ["/", "/static/app.js", "/api/tasks", "/health",
+                                  "/api/tasks/999999/complete"])
+def test_security_headers_are_on_every_response(client, path):
+    method = client.post if path.endswith("/complete") else client.get
+    headers = method(path).headers
+    csp = headers["content-security-policy"]
+    for directive in ("default-src 'self'", "frame-ancestors 'none'", "object-src 'none'",
+                      "base-uri 'none'", "form-action 'self'"):
+        assert directive in csp
+    assert "unsafe-inline" not in csp and "unsafe-eval" not in csp
+    assert headers["x-frame-options"] == "DENY"
+    assert headers["x-content-type-options"] == "nosniff"
+    assert headers["referrer-policy"] == "no-referrer"
+
+
+def test_refusals_carry_the_headers_too(client):
+    assert "content-security-policy" in client.get(
+        "/", headers={"Host": "attacker.example"}).headers
+    assert "content-security-policy" in client.post(
+        "/api/tasks", json={"title": "x"}, headers=CROSS_SITE_FETCH).headers
+
+
+@pytest.mark.parametrize("path", ["/docs", "/redoc", "/openapi.json"])
+def test_the_api_docs_are_not_served(client, path):
+    assert client.get(path).status_code == 404
+
+
+# --- text that reads differently from how it is stored ------------------------
+
+
+def test_joined_emoji_survive_but_bidi_controls_do_not(client):
+    """Category C was stripped wholesale, which took the zero-width joiner out
+    of a family emoji and left three people where one family had been."""
+    family = "\U0001F468‍\U0001F469‍\U0001F467"
+    heart = "❤️"
+    task = add(client, f"Photos {family} {heart}")
+    assert task["title"] == f"Photos {family} {heart}"
+    for control in ("‪", "‫", "‬", "‭", "‮",
+                    "⁦", "⁧", "⁨", "⁩"):
+        assert add(client, f"a{control}b")["title"] == "ab", repr(control)
+
+
+def test_code_points_this_python_does_not_know_are_kept():
+    """Unassigned in *this* interpreter's tables is not the same as meaningless:
+    a newer emoji is unassigned to an older Python, and used to vanish."""
+    import unicodedata
+
+    import app
+
+    unassigned = next(chr(c) for c in range(0x1FA00, 0x1FB00)
+                      if unicodedata.category(chr(c)) == "Cn")
+    assert app.clean_line(f"x{unassigned}y") == f"x{unassigned}y"
+    assert app.clean_line("xy") == "xy", "private use is still stripped"

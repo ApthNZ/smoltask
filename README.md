@@ -177,9 +177,12 @@ docker compose up -d --build
 app is the server's today, and a container without it runs in UTC — the page
 will warn you if its date and your browser's disagree.
 
-Read the comments in `docker-compose.yml` first — it publishes the port to your
-whole network, and the recommended binding is `127.0.0.1:` unless you have a
-reason.
+The compose file publishes on `127.0.0.1` only. To serve smoltask to the rest of
+your network, set `SMOLTASK_BIND=0.0.0.0` in `.env` **and** list the name you
+will browse to in `SMOLTASK_ALLOWED_HOSTS` — the app refuses any Host header it
+was not told about, which is its defence against DNS rebinding. The comments in
+`docker-compose.yml` explain both, and why a host firewall does not narrow a
+Docker-published port.
 
 ## What it will never have
 

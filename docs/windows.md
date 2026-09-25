@@ -152,11 +152,18 @@ kind**, so anyone who can open the page can read and edit every task, and a
 to-do list says more about your work than most things you would casually
 publish.
 
-If you do want it on your home network:
+If you do want it on your home network, tell the app the name other devices
+will use for it as well as opening the port:
 
 ```powershell
+$env:SMOLTASK_ALLOWED_HOSTS = "localhost,127.0.0.1,<your-laptop-name-or-ip>"
 .\.venv\Scripts\python.exe -m uvicorn app:app --host 0.0.0.0 --port 8108
 ```
+
+Without the first line, other devices get **Invalid host header**. The app
+answers only to names it has been told about, which is what stops a web page
+you visit from re-pointing its own domain at your laptop and reading the app
+through your browser.
 
 Windows Defender Firewall will prompt the first time — allow it on **private**
 networks only, never public. Other devices then use `http://<your-laptop-ip>:8108`;
@@ -229,10 +236,9 @@ Three things differ from the Python route:
   the page a day out for part of every day. Create a `.env` file next to
   `docker-compose.yml` with the IANA name for where you live — `TZ=Europe/London`,
   `TZ=America/Chicago` — not the Windows label like *GMT Standard Time*.
-- It publishes on all interfaces, so the whole network can reach it. Given
-  there is no login, change the ports line to `"127.0.0.1:${SMOLTASK_PORT:-8108}:8000"`
-  if you want it kept to the laptop. The comments at the top of the compose
-  file say the same thing.
+- It publishes on `127.0.0.1` only, so it is kept to the laptop. To share it,
+  add `SMOLTASK_BIND=0.0.0.0` and `SMOLTASK_ALLOWED_HOSTS=localhost,127.0.0.1,<your-laptop-name-or-ip>`
+  to the same `.env`. The comments at the top of the compose file explain both.
 - The container is pinned to uid 1000, which matters on Linux and means nothing
   on Windows. It keeps the database on a bind mount at `.\data`; if Docker
   Desktop reports a permissions error writing `/data`, delete the

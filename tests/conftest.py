@@ -1,7 +1,13 @@
+import os
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+# TestClient sends `Host: testserver`. It goes in here rather than in the
+# defaults, which describe a real deployment; set before `app` is imported,
+# because the middleware reads the list once, at startup.
+os.environ["SMOLTASK_ALLOWED_HOSTS"] = "localhost,127.0.0.1,[::1],testserver"
 
 import pytest
 from fastapi.testclient import TestClient

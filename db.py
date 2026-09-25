@@ -86,7 +86,17 @@ OUTCOMES = ("done", "promoted")
 
 
 def connect(path: str | None = None) -> sqlite3.Connection:
-    conn = sqlite3.connect(path or DB_PATH)
+    # check_same_thread=False: a connection is opened per request and handed
+    # back at the end of it, but FastAPI runs a sync dependency's setup, the
+    # endpoint and the teardown as three separate threadpool jobs, which are
+    # not guaranteed to land on the same worker thread. They are strictly
+    # sequential, so one connection is still only ever used by one thread at a
+    # time — the default guard rejects the handover rather than a real race.
+    #
+    # Ported from smolplan, which found it first. Here it cost the one
+    # operation that must never fail: three captures in flight at once lost
+    # about two in three of them to a 500.
+    conn = sqlite3.connect(path or DB_PATH, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
     conn.execute("PRAGMA journal_mode = WAL")

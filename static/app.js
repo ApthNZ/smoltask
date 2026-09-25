@@ -73,6 +73,9 @@ const state = {
   queue: [],
   qi: 0,
   undo: [],
+  // Lines that failed to save while the capture line already held the next
+  // one. Kept in order; Enter on an empty capture line sends them again.
+  unsent: [],
   barUntil: 0,
   archive: { rows: [], sort: "finished", dir: "desc", q: "", outcome: "" },
   labels: null,
@@ -96,6 +99,9 @@ function el(tag, attrs, ...kids) {
     if (v === null || v === undefined || v === false) continue;
     if (k.startsWith("on") && typeof v === "function") node.addEventListener(k.slice(2), v);
     else if (k === "value") node.value = v;
+    // Through the CSSOM, never as an attribute: the CSP refuses inline style
+    // attributes, and a `style` set with setAttribute would silently do nothing.
+    else if (k === "style") node.style.cssText = v;
     else node.setAttribute(k, v === true ? "" : v);
   }
   setChildren(node, ...kids);
@@ -259,6 +265,13 @@ function renderKeys() {
 }
 
 function renderTasks() {
+  // The capture line is rebuilt with the rest of the page, and in fast capture
+  // it is rarely empty when that happens: the next task is being typed while
+  // the last one saves, and the save's re-render used to wipe it. Its words
+  // and caret are carried across instead.
+  const old = $("capture");
+  const carried = old && old.value
+    ? { value: old.value, start: old.selectionStart, end: old.selectionEnd } : null;
   const blocks = [];
   if (state.triaging) blocks.push(triageBar(), quadrantGrid());
   blocks.push(captureRow());
@@ -291,6 +304,15 @@ function renderTasks() {
   if (state.editing !== null) focusInput(`[data-edit="${state.editing}"]`, { caretAtEnd: true });
   else if (state.dueFor !== null) focusInput(`[data-due="${state.dueFor}"]`);
   else if (!state.triaging && state.focus === null) focusInput("#capture");
+
+  const box = $("capture");
+  if (box && carried) {
+    box.value = carried.value;
+    // After the focus above, which selects the whole line: a keystroke must
+    // land where the caret was, not replace everything typed so far.
+    box.setSelectionRange(carried.start, carried.end);
+  }
+  updateCounter();
 }
 
 function focusInput(selector, { caretAtEnd = false } = {}) {
@@ -332,7 +354,8 @@ function updateCounter() {
   if (!input || !counter || !capdue) return;
   const { title, due } = splitDue(input.value, state.today);
   const used = title.length;
-  counter.textContent = used >= COUNTER_FROM ? `${used}/${MAX_TITLE}` : "";
+  counter.textContent = used >= COUNTER_FROM ? `${used}/${MAX_TITLE}`
+    : !input.value && state.unsent.length ? `${state.unsent.length} unsent` : "";
   counter.classList.toggle("full", used >= MAX_TITLE);
   capdue.textContent = due ? formatDue(due, state.today) : "";
   capdue.title = due ? `Due ${due}` : "";
@@ -733,10 +756,19 @@ async function addTask(line) {
   try {
     task = await api("/api/tasks", { method: "POST", body: JSON.stringify({ title, due }) });
   } catch (err) {
-    // Not written, so give the words back rather than losing them.
+    // Not written, so the words must not be lost. Straight back into the line
+    // if it is empty; but in fast capture it usually is not — the next task is
+    // already half typed by the time the first one fails — so then the line
+    // waits in `unsent` and the toast says which one it was.
     const box = $("capture");
-    if (box && !box.value) { box.value = line; updateCounter(); }
-    toast(err.message);
+    if (box && !box.value) {
+      box.value = line;
+      toast(err.message);
+    } else {
+      state.unsent.push(line);
+      toast(`Not saved: "${title}". ${err.message} Enter on an empty line sends it again.`);
+    }
+    updateCounter();
     return;
   }
   // Triage picks it up after: the queue is a snapshot, so without this a task
@@ -746,8 +778,11 @@ async function addTask(line) {
   // The re-render destroys the input the keystroke came from, and focus falls
   // to the body. Rendering only restores it when nothing is selected, so with a
   // row selected the line went dead after one Enter and the next task typed
-  // into nowhere. Pressing Enter in the capture line always keeps the line.
-  focusInput("#capture");
+  // into nowhere. Pressing Enter in the capture line always keeps the line —
+  // with the caret at the end rather than the line selected, because by now it
+  // usually holds the next task, and a selected line is replaced by the next
+  // keystroke.
+  focusInput("#capture", { caretAtEnd: true });
 }
 
 async function completeTask(id) {
@@ -755,7 +790,14 @@ async function completeTask(id) {
   if (!task) return;
   const order = visibleIds();
   const next = order[order.indexOf(id) + 1] ?? order[order.indexOf(id) - 1] ?? null;
-  await api(`/api/tasks/${id}/complete`, { method: "POST" });
+  try {
+    await api(`/api/tasks/${id}/complete`, { method: "POST" });
+  } catch (err) {
+    // Still on the page, because it is still open; say so rather than leave
+    // an unhandled rejection and a tick that looked as if it did something.
+    toast(err.message);
+    return;
+  }
   state.undo.push({ id, title: task.title });
   state.barUntil = Date.now() + UNDO_VISIBLE_MS;
   setTimeout(renderUndo, UNDO_VISIBLE_MS + 50);
@@ -910,6 +952,12 @@ function onCaptureKey(event) {
     }
     input.value = "";
     updateCounter();
+    if (!value.trim() && state.unsent.length) {
+      // One attempt each, in the order they were written; any that fail again
+      // go back on the end of the queue.
+      for (const line of state.unsent.splice(0)) addTask(line);
+      return;
+    }
     addTask(value);
   } else if (event.key === "ArrowDown") {
     event.preventDefault();

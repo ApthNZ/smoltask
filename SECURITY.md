@@ -34,5 +34,8 @@ Details, including the accepted risks, are in
 parameterised, the archive's sort and filter arguments are matched against an
 allowlist rather than interpolated, titles are stripped of control characters
 and bounded at 80 characters, dates and quadrants are validated before they
-reach SQL, and static files are served by a mount that confines paths.
+reach SQL, and static files are served by a mount that confines paths. The app
+also refuses requests that name a host it was not told about (DNS rebinding)
+and writes that a browser marks as coming from another site (CSRF), and sends a
+strict Content-Security-Policy that forbids framing.
 `tests/test_security.py` covers each of those.

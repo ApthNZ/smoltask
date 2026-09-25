@@ -61,6 +61,15 @@ def test_no_date_crashes_the_patcher(client, due):
     assert client.patch(f"/api/tasks/{task['id']}", json={"due": due}).status_code < 500
 
 
+@pytest.mark.parametrize("quadrant", [True, False, "2", 1.0, 2.0, "1"])
+def test_a_quadrant_is_an_integer_not_something_that_converts_to_one(client, quadrant):
+    """Pydantic's lax mode turned `true` into 1 and `"2"` into 2 before the
+    validator saw them, so its bool check was dead code."""
+    task = add(client, "subject")
+    assert client.patch(f"/api/tasks/{task['id']}", json={"quadrant": quadrant}).status_code == 422
+    assert client.get("/api/tasks").json()["tasks"][0]["quadrant"] is None
+
+
 @pytest.mark.parametrize("quadrant", HOSTILE_QUADRANTS)
 def test_no_quadrant_crashes_the_patcher(client, quadrant):
     task = add(client, "subject")
@@ -137,3 +146,69 @@ def test_no_date_crashes_the_creator(client, due):
 def test_no_settings_body_crashes_the_saver(client, body):
     assert client.put("/api/settings", json=body).status_code < 500
     assert client.get("/api/tasks").status_code == 200
+
+
+# --- concurrency -------------------------------------------------------------
+
+
+def test_concurrent_captures_all_succeed_through_a_real_server(dbfile):
+    """A hundred and fifty captures, five at a time, through real uvicorn.
+
+    FastAPI runs a sync dependency's setup, the endpoint and the teardown as
+    separate threadpool jobs, so a request's connection can be opened on one
+    worker thread and used on another. With SQLite's default
+    `check_same_thread=True` that is a ProgrammingError and a 500: measured at
+    two in three captures lost with just three in flight. TestClient never saw
+    it, because it sends one request at a time — hence a real server here.
+
+    Five, not more: at twenty in flight on a loaded machine, a writer can wait
+    out SQLite's five-second busy timeout and fail with "database is locked",
+    which is contention and not the bug this is here for. Five still fails
+    well over half the captures with the thread check turned back on.
+    """
+    import json
+    import threading
+    import time
+    import urllib.error
+    import urllib.request
+    from concurrent.futures import ThreadPoolExecutor
+
+    import uvicorn
+
+    import app as app_module
+
+    server = uvicorn.Server(uvicorn.Config(app_module.app, host="127.0.0.1", port=0,
+                                           log_level="warning"))
+    thread = threading.Thread(target=server.run, daemon=True)
+    thread.start()
+    deadline = time.monotonic() + 10
+    while not server.started:
+        assert time.monotonic() < deadline, "server did not start"
+        time.sleep(0.02)
+    port = server.servers[0].sockets[0].getsockname()[1]
+
+    def capture(n):
+        request = urllib.request.Request(
+            f"http://127.0.0.1:{port}/api/tasks",
+            data=json.dumps({"title": f"task {n}"}).encode(),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            return urllib.request.urlopen(request, timeout=10).status
+        except urllib.error.HTTPError as exc:
+            return exc.code
+
+    try:
+        with ThreadPoolExecutor(max_workers=5) as pool:
+            statuses = list(pool.map(capture, range(150)))
+    finally:
+        server.should_exit = True
+        thread.join(timeout=10)
+
+    assert statuses.count(201) == 150, {s: statuses.count(s) for s in set(statuses)}
+    conn = db.connect()
+    try:
+        assert conn.execute("SELECT COUNT(*) FROM task").fetchone()[0] == 150
+    finally:
+        conn.close()

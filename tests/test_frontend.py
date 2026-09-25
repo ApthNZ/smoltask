@@ -231,7 +231,18 @@ def test_adding_a_task_keeps_the_capture_line():
     went dead after one Enter and the next task typed into nowhere."""
     body = APP_JS[APP_JS.index("async function addTask("):]
     body = body[:body.index("\n}\n")]
-    assert body.rstrip().endswith('focusInput("#capture");')
+    assert body.rstrip().endswith('focusInput("#capture", { caretAtEnd: true });')
+
+
+def test_the_next_task_survives_the_last_one_saving():
+    """In fast capture the next line is being typed while the last one saves.
+    The save re-renders the page, which rebuilt the capture line empty — and
+    then re-focused it with everything selected, so the next keystroke replaced
+    whatever had survived. Both are pinned: the words are carried across the
+    render, and the focus after a capture puts the caret at the end."""
+    render = APP_JS[APP_JS.index("function renderTasks("):]
+    render = render[:render.index("\n}\n")]
+    assert "carried" in render and "box.value = carried.value" in render
 
 
 def test_the_date_box_says_how_to_clear_a_date():
@@ -559,3 +570,31 @@ def test_editing_a_title_puts_the_cursor_at_the_end_not_over_the_text():
     body = APP_JS[APP_JS.index("function focusInput("):]
     body = body[:body.index("\n}\n")]
     assert "node.setSelectionRange(node.value.length, node.value.length)" in body
+
+
+def test_styles_are_set_through_the_cssom_not_as_attributes():
+    """The CSP refuses inline style attributes, so a `style` passed to `el()`
+    and set with setAttribute rendered unstyled — the section hues vanished
+    with nothing but a console warning. It goes through `node.style.cssText`."""
+    assert 'k === "style") node.style.cssText = v' in APP_JS
+    assert not re.search(r"setAttribute\(\s*[\"']style", APP_JS)
+    assert "<script>" not in INDEX
+    assert not re.search(r"\son\w+=", INDEX), "inline handlers are inline script"
+
+
+def test_a_failed_capture_is_never_lost():
+    """In fast capture the next task is already being typed when the first one
+    fails, so "give the words back if the line is empty" usually meant losing
+    them. They wait in `unsent`, the toast names them, and Enter on an empty
+    line sends them again."""
+    body = APP_JS[APP_JS.index("async function addTask("):]
+    body = body[:body.index("\n}\n")]
+    assert "state.unsent.push(line)" in body
+    assert "unsent: []" in APP_JS
+    assert "state.unsent.splice(0)" in APP_JS, "nothing resends them"
+
+
+def test_a_failed_completion_says_so():
+    body = APP_JS[APP_JS.index("async function completeTask("):]
+    body = body[:body.index("\n}\n")]
+    assert "catch (err)" in body and "toast(err.message)" in body
