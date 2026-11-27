@@ -10,7 +10,7 @@ dependency ships a Windows wheel.
 
 ## What you need
 
-- **Python 3.10 or newer.** CI runs the test suite on 3.10 and the container
+- **Python 3.11 or newer.** CI runs the test suite on 3.11 and the container
   image is built on 3.14, so anything in that range is fine.
 - **Git**, optionally. You can download the code as a zip instead.
 

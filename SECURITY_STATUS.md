@@ -39,7 +39,7 @@ browser treats the app as that page's own origin and lets it read everything.
 | No reachable input returns 5xx; schema invariants survive any operation order | repo-wide | `tests/test_robustness.py` |
 | Concurrent requests do not 500: a request's connection may cross threadpool workers, so it is opened with `check_same_thread=False` | `db.py:connect` | `test_concurrent_captures_all_succeed_through_a_real_server` |
 | Compose publishes on `127.0.0.1` unless `SMOLTASK_BIND` says otherwise (Docker's published ports bypass host firewalls); read-only root filesystem, all capabilities dropped, `no-new-privileges`; base image pinned by digest | `docker-compose.yml`, `Dockerfile` | `tests/test_config.py` |
-| CI actions pinned to commits; automerge checks the PR's author and runs only on the private repo; tests run on Python 3.10 and on the image's 3.14; the image is built and health-checked before a Dependabot merge | `.github/workflows/` | `tests/test_config.py` |
+| CI actions pinned to commits; automerge checks the PR's author and runs only on the private repo; tests run on Python 3.11 and on the image's 3.14; the image is built and health-checked before a Dependabot merge | `.github/workflows/` | `tests/test_config.py` |
 | No hardcoded secrets in the tree | repo-wide | `test_no_hardcoded_secrets` |
 | Database file is not tracked by git | `.gitignore` | `test_database_file_is_not_tracked` |
 
